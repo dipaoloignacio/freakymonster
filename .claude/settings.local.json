@@ -48,7 +48,28 @@
       "Bash(lsof -i:3001 -sTCP:LISTEN)",
       "Bash(sudo -n true)",
       "Bash(kill 7703 7691 7690)",
-      "Bash(git diff *)"
+      "Bash(git diff *)",
+      "Bash(docker --version)",
+      "Bash(docker compose *)",
+      "Bash(npm --version)",
+      "Bash(npx --yes @nestjs/cli@latest new api --package-manager npm --skip-git --skip-install)",
+      "Bash(npx prisma *)",
+      "Bash(rm -rf apps/api/.claude apps/api/.agents apps/api/.windsurf apps/api/skills-lock.json)",
+      "Bash(cp .env.example .env)",
+      "Bash(docker exec *)",
+      "Bash(curl -sf http://localhost:3001/health)",
+      "Bash(rm -rf generated)",
+      "Bash(sleep 3 && cat /tmp/claude-1000/dev-api.log)",
+      "Bash(sleep 6 && tail -40 /tmp/claude-1000/dev-api.log)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" http://localhost:3001/health)",
+      "Bash(tail -30 /tmp/claude-1000/dev-api.log)",
+      "Bash(sleep 5 && tail -25 /tmp/claude-1000/dev-api.log)",
+      "Bash(curl -s http://localhost:3001/health)",
+      "Bash(curl -sf http://localhost:3000 -o /dev/null -w \"web HTTP %{http_code}\\\\n\")",
+      "Bash(kill 15117)",
+      "Bash(pkill -f \"npm run start:dev -w apps/api\")",
+      "Bash(curl -sf http://localhost:3001/health -o /dev/null -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(kill 12959 12970 12971)"
     ]
   }
 }

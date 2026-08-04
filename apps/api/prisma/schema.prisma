@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Artist {
+  id          String   @id @default(cuid())
+  name        String
+  bio         String?
+  specialties String[]
+  active      Boolean  @default(true)
+
+  services     ArtistService[]
+  availability WeeklyAvailability[]
+  blocks       AvailabilityBlock[]
+  appointments Appointment[]
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  name            String
+  durationMinutes Int
+  requiresDeposit Boolean  @default(false)
+  depositAmount   Decimal? @db.Decimal(10, 2)
+
+  artists      ArtistService[]
+  appointments Appointment[]
+}
+
+model ArtistService {
+  artistId  String
+  serviceId String
+
+  artist  Artist  @relation(fields: [artistId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@id([artistId, serviceId])
+}
+
+model WeeklyAvailability {
+  id        String @id @default(cuid())
+  artistId  String
+  dayOfWeek Int // 0 = domingo ... 6 = sábado
+  startTime String // "12:00"
+  endTime   String // "20:00"
+
+  artist Artist @relation(fields: [artistId], references: [id])
+}
+
+model AvailabilityBlock {
+  id       String   @id @default(cuid())
+  artistId String
+  date     DateTime @db.Date
+  reason   String?
+
+  artist Artist @relation(fields: [artistId], references: [id])
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum DepositStatus {
+  NONE
+  PENDING
+  PAID
+}
+
+model Appointment {
+  id            String            @id @default(cuid())
+  artistId      String
+  serviceId     String
+  customerName  String
+  customerPhone String
+  customerEmail String?
+  startTime     DateTime
+  endTime       DateTime
+  status        AppointmentStatus @default(PENDING)
+  depositStatus DepositStatus     @default(NONE)
+  notes         String?
+  createdAt     DateTime          @default(now())
+
+  artist  Artist  @relation(fields: [artistId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+}

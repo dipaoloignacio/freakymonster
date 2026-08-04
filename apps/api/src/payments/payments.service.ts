@@ -5,6 +5,7 @@ import { DateTime } from 'luxon';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from '../availability/availability.service';
 import { STUDIO_TIMEZONE } from '../common/timezone';
+import { EmailService, AppointmentForEmail } from '../notifications/email.service';
 
 // Placeholders hasta tener el dominio real del frontend.
 const FRONTEND_BASE_URL = 'https://tudominio.com';
@@ -17,6 +18,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly availabilityService: AvailabilityService,
+    private readonly emailService: EmailService,
   ) {
     this.mpConfig = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! });
   }
@@ -83,8 +85,9 @@ export class PaymentsService {
       return;
     }
 
+    let confirmedAppointment: AppointmentForEmail | null;
     try {
-      await this.prisma.$transaction(
+      confirmedAppointment = await this.prisma.$transaction(
         (tx) => this.confirmAppointmentFromPayment(tx, appointmentId, paymentId),
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
@@ -98,24 +101,42 @@ export class PaymentsService {
       }
       throw error;
     }
+
+    // El email se dispara DESPUÉS de que la transacción ya confirmó (nunca
+    // adentro: una llamada de red lenta no debe mantener abierto un lock de
+    // una transacción Serializable). Si falla, no vuelve a tocar el turno —
+    // EmailService ya garantiza no tirar excepciones hacia afuera, pero lo
+    // envolvemos igual acá por las dudas.
+    if (confirmedAppointment) {
+      try {
+        await this.emailService.sendAppointmentConfirmation(confirmedAppointment);
+      } catch (error) {
+        this.logger.error(
+          `Error inesperado enviando el email de confirmación del turno ${confirmedAppointment.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   private async confirmAppointmentFromPayment(
     tx: Prisma.TransactionClient,
     appointmentId: string,
     paymentId: string | number,
-  ): Promise<void> {
+  ): Promise<AppointmentForEmail | null> {
     const appointment = await tx.appointment.findUnique({ where: { id: appointmentId } });
     if (!appointment) {
       this.logger.error(
         `Pago ${paymentId} approved para un turno inexistente (external_reference=${appointmentId}). Requiere revisión manual.`,
       );
-      return;
+      return null;
     }
 
     if (appointment.depositStatus === DepositStatus.PAID) {
       // Notificación duplicada/reintento de MP para un pago ya procesado.
-      return;
+      // No hay nada nuevo que confirmar, y ya se mandó el email la primera vez.
+      return null;
     }
 
     if (appointment.status === AppointmentStatus.CANCELLED) {
@@ -134,41 +155,45 @@ export class PaymentsService {
       if (slotStillFree) {
         // Nadie más tomó el horario todavía: el cliente pagó, se lo
         // recuperamos aunque haya expirado por los 15 minutos.
-        await tx.appointment.update({
+        const updated = await tx.appointment.update({
           where: { id: appointment.id },
           data: { status: AppointmentStatus.CONFIRMED, depositStatus: DepositStatus.PAID, expiresAt: null },
+          include: { artist: true, service: true },
         });
         this.logger.warn(
           `Turno ${appointment.id} había expirado pero el slot seguía libre: recuperado y CONFIRMED tras el pago ${paymentId}.`,
         );
-      } else {
-        // El horario ya lo tomó otra persona: NO le pisamos la reserva.
-        // Dejamos el turno CANCELLED pero con constancia del pago recibido,
-        // para que el estudio gestione el reembolso a mano — nunca en
-        // silencio.
-        await tx.appointment.update({
-          where: { id: appointment.id },
-          data: {
-            depositStatus: DepositStatus.PAID,
-            notes: [
-              appointment.notes,
-              `⚠️ Pago de Mercado Pago (payment id: ${paymentId}) recibido después de que el turno expiró y el horario ya fue tomado por otra reserva. Requiere reembolso manual.`,
-            ]
-              .filter(Boolean)
-              .join('\n'),
-          },
-        });
-        this.logger.error(
-          `Turno ${appointment.id} expiró y el slot ya fue tomado por otra reserva. Pago ${paymentId} APROBADO pero el turno sigue CANCELLED — requiere reembolso manual.`,
-        );
+        return updated;
       }
-      return;
+
+      // El horario ya lo tomó otra persona: NO le pisamos la reserva.
+      // Dejamos el turno CANCELLED pero con constancia del pago recibido,
+      // para que el estudio gestione el reembolso a mano — nunca en
+      // silencio. No se manda email de confirmación: el turno NO quedó
+      // confirmado.
+      await tx.appointment.update({
+        where: { id: appointment.id },
+        data: {
+          depositStatus: DepositStatus.PAID,
+          notes: [
+            appointment.notes,
+            `⚠️ Pago de Mercado Pago (payment id: ${paymentId}) recibido después de que el turno expiró y el horario ya fue tomado por otra reserva. Requiere reembolso manual.`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        },
+      });
+      this.logger.error(
+        `Turno ${appointment.id} expiró y el slot ya fue tomado por otra reserva. Pago ${paymentId} APROBADO pero el turno sigue CANCELLED — requiere reembolso manual.`,
+      );
+      return null;
     }
 
     // Camino feliz: el turno seguía PENDING esperando el pago.
-    await tx.appointment.update({
+    return tx.appointment.update({
       where: { id: appointment.id },
       data: { status: AppointmentStatus.CONFIRMED, depositStatus: DepositStatus.PAID, expiresAt: null },
+      include: { artist: true, service: true },
     });
   }
 }

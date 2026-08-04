@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from '../availability/availability.service';
+import { EmailService } from '../notifications/email.service';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
@@ -12,6 +13,7 @@ describe('PaymentsService', () => {
         PaymentsService,
         { provide: PrismaService, useValue: {} },
         { provide: AvailabilityService, useValue: {} },
+        { provide: EmailService, useValue: { sendAppointmentConfirmation: jest.fn() } },
       ],
     }).compile();
 

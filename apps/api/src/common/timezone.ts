@@ -72,3 +72,15 @@ export function naiveCalendarDayRangeUtc(dateStr: string): { start: Date; end: D
   end.setUTCDate(end.getUTCDate() + 1);
   return { start, end };
 }
+
+/**
+ * Formatea un instante UTC como fecha y hora legible en hora Mendoza, para
+ * mostrar en emails/UI (nunca mostrar el UTC crudo a un humano).
+ * Ej: "martes 18 de agosto de 2026, 12:00".
+ */
+export function formatLocalDateTime(date: Date): string {
+  return DateTime.fromJSDate(date, { zone: 'utc' })
+    .setZone(STUDIO_TIMEZONE)
+    .setLocale('es')
+    .toFormat("cccc d 'de' LLLL 'de' yyyy, HH:mm 'hs'");
+}

@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(npm ls *)",
+      "Bash(node -e \"console.log\\(require.resolve\\('culori'\\)\\)\")",
+      "Bash(npm view *)",
+      "Bash(npm install *)",
+      "Bash(xargs grep -l \"PrefillAndIframeAttrsConfig\")",
+      "Bash(xargs grep -ln \"BookerLayouts =\")",
+      "Bash(npx tsc *)",
+      "Bash(where chromium-cli *)",
+      "Read(//c/Users/nacho/AppData/Local/Temp/claude/bundled-skills/2.1.220/**)",
+      "Bash(npx --yes playwright --version)",
+      "Bash(node -e \"require.resolve\\('playwright'\\)\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\nacho\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-nacho-Documents-WEBS-freakymonster-uploads-tattoo-studio\\\\1acf0f8e-14d9-4fdc-8207-3a34fc2f4149\\\\scratchpad\")",
+      "Bash(npm init *)",
+      "Bash(timeout 40 bash -c 'until curl -sf http://localhost:3000 >/dev/null; do sleep 1; done')",
+      "Bash(cat /tmp_devserver.log)",
+      "Bash(npx playwright *)",
+      "Bash(node test-booking-modal.js)",
+      "Bash(npm run *)",
+      "Bash(lsof -ti:3000 -sTCP:LISTEN)",
+      "Bash(xargs -r kill)",
+      "Bash(node test-modal-scroll.js)",
+      "Bash(curl -sf -m 5 http://localhost:3000)",
+      "Bash(lsof -ti:3000)",
+      "Bash(nohup npm run dev)",
+      "Bash(disown)",
+      "Bash(timeout 40 bash -c 'until curl -sf http://localhost:3000 >/dev/null 2>&1; do sleep 1; done')",
+      "Bash(curl -sf http://localhost:3002)",
+      "Bash(node test-revert.js)"
+    ]
+  }
+}

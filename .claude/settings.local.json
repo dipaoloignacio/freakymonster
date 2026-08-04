@@ -29,7 +29,26 @@
       "Bash(disown)",
       "Bash(timeout 40 bash -c 'until curl -sf http://localhost:3000 >/dev/null 2>&1; do sleep 1; done')",
       "Bash(curl -sf http://localhost:3002)",
-      "Bash(node test-revert.js)"
+      "Bash(node test-revert.js)",
+      "Bash(git status *)",
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(rm -rf node_modules package-lock.json .next)",
+      "Bash(node -e \"const p=require\\('./package-lock.json'\\); console.log\\(p.packages['apps/web']\\)\")",
+      "Bash(curl -sf http://localhost:3000)",
+      "Bash(break)",
+      "Read(//tmp/claude-1000/**)",
+      "Bash(curl -sf http://localhost:3001 -o /tmp/claude-1000/home.html -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(cat /tmp/claude-1000/dev-web.log)",
+      "Bash(command -v chromium-cli)",
+      "Bash(mkdir -p /tmp/claude-1000/-home-ignacio-Documentos-paginas-web-desarrollo-freakymonster/70751b07-2dcb-4e0a-8b06-4a76b3e8d1a3/scratchpad)",
+      "Bash(google-chrome --headless --disable-gpu --no-sandbox --hide-scrollbars --window-size=1440,1600 --screenshot=monorepo-migration-homepage.png http://localhost:3001)",
+      "Bash(lsof -ti:3001 -sTCP:LISTEN)",
+      "Bash(curl -sf http://localhost:3001)",
+      "Bash(lsof -i:3001 -sTCP:LISTEN)",
+      "Bash(sudo -n true)",
+      "Bash(kill 7703 7691 7690)",
+      "Bash(git diff *)"
     ]
   }
 }

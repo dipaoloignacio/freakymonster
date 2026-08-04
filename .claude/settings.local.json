@@ -69,7 +69,23 @@
       "Bash(kill 15117)",
       "Bash(pkill -f \"npm run start:dev -w apps/api\")",
       "Bash(curl -sf http://localhost:3001/health -o /dev/null -w \"HTTP %{http_code}\\\\n\")",
-      "Bash(kill 12959 12970 12971)"
+      "Bash(kill 12959 12970 12971)",
+      "Bash(npx nest *)",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' 'http://localhost:3001/availability?artistId=cmsezy0dd0000mha8y8dn59fy&serviceId=cmsezy0do0003mha88jkm2mtu&date=2026-08-11')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' 'http://localhost:3001/availability?artistId=cmsezy0dd0000mha8y8dn59fy&serviceId=cmsezy0do0003mha88jkm2mtu&date=2026-08-13')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' 'http://localhost:3001/availability?artistId=cmsezy0di0001mha8vzh4yn1r&serviceId=cmsezy0dr0004mha8pmdx21gr&date=2026-08-11')",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" \"http://localhost:3001/availability?serviceId=x&date=2026-08-11\")",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" \"http://localhost:3001/availability?artistId=x&serviceId=y&date=11-08-2026\")",
+      "Bash(kill 19151)",
+      "Bash(pkill -f \"nest start --watch\")",
+      "Bash(kill 19118 19129 19130)",
+      "Bash(kill 24463)",
+      "Bash(kill 24419 24430 24431)",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' 'http://localhost:3001/availability?artistId=cmsf15ygs0000h2a84zp4vtll&serviceId=cmsf15yh20003h2a8j7f88nxh&date=2026-08-11')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' 'http://localhost:3001/availability?artistId=cmsf15ygs0000h2a84zp4vtll&serviceId=cmsf15yh20003h2a8j7f88nxh&date=2026-08-13')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' 'http://localhost:3001/availability?artistId=cmsf15ygx0001h2a8crqz9wv9&serviceId=cmsf15yh60004h2a8r14q37t9&date=2026-08-11')",
+      "Bash(kill 25350)",
+      "Bash(kill 25306 25317 25318)"
     ]
   }
 }

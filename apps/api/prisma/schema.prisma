@@ -83,6 +83,10 @@ model Appointment {
   status        AppointmentStatus @default(PENDING)
   depositStatus DepositStatus     @default(NONE)
   notes         String?
+  // Solo se setea para turnos PENDING de servicios que requieren seña (15
+  // min desde la creación). null = no expira (ni requiere seña, ni ya está
+  // CONFIRMED). Ver AppointmentsService.create() y AppointmentExpiryCleanup.
+  expiresAt     DateTime?
   createdAt     DateTime          @default(now())
 
   artist  Artist  @relation(fields: [artistId], references: [id])

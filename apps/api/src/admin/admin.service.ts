@@ -1,7 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AppointmentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService, parseTimeToMinutes } from '../availability/availability.service';
+import { AppointmentsService } from '../appointments/appointments.service';
+import { EmailService } from '../notifications/email.service';
+import { CreateAppointmentDto } from '../appointments/dto/create-appointment.dto';
 import { dayOfWeekOf, localCalendarDayRangeUtc, localCalendarTimeToUtc, naiveCalendarDayRangeUtc } from '../common/timezone';
 import { GetAdminAppointmentsDto } from './dto/get-admin-appointments.dto';
 import { UpdateAdminAppointmentDto } from './dto/update-admin-appointment.dto';
@@ -32,10 +35,70 @@ const WEEKLY_AVAILABILITY_ORDER = [{ dayOfWeek: 'asc' }, { startTime: 'asc' }] a
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly availabilityService: AvailabilityService,
+    private readonly appointmentsService: AppointmentsService,
+    private readonly emailService: EmailService,
   ) {}
+
+  /**
+   * Alta manual desde el panel (reserva por teléfono/WhatsApp).
+   *
+   * Delega en AppointmentsService.create() para no duplicar la validación de
+   * disponibilidad ni la transacción SERIALIZABLE que evita la doble reserva
+   * — un turno cargado a mano compite por los mismos slots que uno de la web.
+   *
+   * Cambia dos cosas respecto del alta pública:
+   *  - Nace CONFIRMED: el estudio ya habló con el cliente, no hay nada que
+   *    esperar. Dejarlo PENDING lo mostraría como "sin confirmar" para
+   *    siempre.
+   *  - No aplica el vencimiento de 15 minutos de la seña. Ese plazo existe
+   *    para liberar el slot si el cliente no paga online; acá no hay pago
+   *    online, así que activarlo haría que el cron de limpieza cancele el
+   *    turno solo a los 15 minutos de haberlo cargado.
+   *
+   * La seña, si el servicio la pide, queda en NONE y la coordina el estudio
+   * por su cuenta.
+   */
+  async createAppointment(dto: CreateAppointmentDto) {
+    const created = await this.appointmentsService.create(dto, {
+      status: AppointmentStatus.CONFIRMED,
+      applyDepositExpiry: false,
+    });
+
+    // create() devuelve el turno pelado; el panel (y el email) necesitan
+    // tatuador y servicio, igual que el resto de los endpoints de turnos.
+    const appointment = await this.prisma.appointment.findUniqueOrThrow({
+      where: { id: created.id },
+      include: APPOINTMENT_INCLUDE,
+    });
+
+    // El turno nace CONFIRMED, así que el cliente merece la misma
+    // confirmación que si hubiera reservado por la web — el flujo público la
+    // manda desde el webhook de Mercado Pago, que acá nunca se dispara.
+    //
+    // Solo el mail al cliente: el aviso al estudio (sendStudioNotification)
+    // existe para enterarlo de una reserva que entró sola, y este turno lo
+    // acaba de cargar el estudio a mano. Si el cliente no dejó email, el
+    // método no manda nada.
+    //
+    // Va fuera de toda transacción y envuelto en try/catch: un email caído no
+    // puede voltear un turno ya creado. Mismo criterio que PaymentsService.
+    try {
+      await this.emailService.sendCustomerConfirmation(appointment);
+    } catch (error) {
+      this.logger.error(
+        `Error inesperado enviando el email de confirmación del turno manual ${appointment.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
+    return appointment;
+  }
 
   async findAppointments(dto: GetAdminAppointmentsDto) {
     const where: Prisma.AppointmentWhereInput = {};
@@ -263,21 +326,41 @@ export class AdminService {
     });
   }
 
-  // No hay DELETE real: un tatuador con turnos asociados (pasados o
-  // futuros) no se puede borrar sin romper esos registros (FK a
-  // Appointment.artistId). "Borrar" acá significa desactivar — el mismo
-  // efecto que PATCH .../active=false, expuesto como endpoint separado
-  // porque es la acción que dispara el botón "Eliminar" del panel. El
-  // tatuador deja de aparecer en el wizard de reserva (ArtistsService
-  // filtra por active) pero su historial y el registro en sí quedan
-  // intactos.
-  async deactivateArtist(id: string) {
+  /**
+   * Mismo criterio que deleteService(): si el tatuador nunca tuvo un turno no
+   * hay historial que preservar y se borra de verdad; si tiene turnos, no se
+   * puede borrar sin romper esos registros (FK desde Appointment.artistId, y
+   * el turno viejo tiene que poder seguir mostrando de quién era), así que
+   * degrada a desactivación.
+   *
+   * `deleted` le dice al panel cuál de las dos cosas pasó, y
+   * `appointmentCount` le permite explicar por qué.
+   *
+   * Desactivar a secas no pasa por acá: es un PATCH con active=false.
+   */
+  async deleteArtist(id: string) {
     const artist = await this.prisma.artist.findUnique({ where: { id } });
     if (!artist) {
       throw new NotFoundException('Tatuador no encontrado');
     }
 
-    return this.prisma.artist.update({ where: { id }, data: { active: false } });
+    const appointmentCount = await this.prisma.appointment.count({ where: { artistId: id } });
+    if (appointmentCount > 0) {
+      const deactivated = await this.prisma.artist.update({ where: { id }, data: { active: false } });
+      return { deleted: false, appointmentCount, artist: deactivated };
+    }
+
+    // Todo lo que referencia al tatuador por FK tiene que irse primero.
+    // Nada de esto es historial: son horarios, bloqueos y qué servicios
+    // ofrecía, todo sin sentido sin el tatuador.
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      await tx.weeklyAvailability.deleteMany({ where: { artistId: id } });
+      await tx.availabilityBlock.deleteMany({ where: { artistId: id } });
+      await tx.artistService.deleteMany({ where: { artistId: id } });
+      return tx.artist.delete({ where: { id } });
+    });
+
+    return { deleted: true, appointmentCount: 0, artist: deleted };
   }
 
   async getWeeklyAvailability(artistId: string) {

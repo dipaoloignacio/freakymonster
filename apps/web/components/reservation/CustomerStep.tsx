@@ -22,6 +22,8 @@ export function CustomerStep({
   slotIso,
   onSubmit,
   onBack,
+  stepInfo,
+  title = "Tus datos",
 }: {
   artist: Artist;
   service: ArtistServiceOption;
@@ -29,6 +31,10 @@ export function CustomerStep({
   slotIso: string;
   onSubmit: (data: CustomerFormData) => Promise<void>;
   onBack: () => void;
+  /** Igual que en DateStep/TimeStep: sin esto no se numera el paso, para
+   * poder reusarlo fuera del wizard (ver el alta manual del panel). */
+  stepInfo?: { step: number; total: number };
+  title?: string;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -68,7 +74,7 @@ export function CustomerStep({
 
   return (
     <div>
-      <StepEyebrow step={5} total={5} label="Tus datos" />
+      <StepEyebrow step={stepInfo?.step} total={stepInfo?.total} label={title} />
 
       <div className="clip-notch-sm mb-5 border-2 border-plum bg-panel p-4 text-sm text-ashLight">
         <div>

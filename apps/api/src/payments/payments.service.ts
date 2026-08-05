@@ -126,7 +126,11 @@ export class PaymentsService {
     // envolvemos igual acá por las dudas.
     if (confirmedAppointment) {
       try {
-        await this.emailService.sendAppointmentConfirmation(confirmedAppointment);
+        // Los dos avisos: la reserva entró sola por la web, así que el estudio
+        // también tiene que enterarse. (El alta manual del panel manda solo el
+        // del cliente — ver AdminService.createAppointment().)
+        await this.emailService.sendCustomerConfirmation(confirmedAppointment);
+        await this.emailService.sendStudioNotification(confirmedAppointment);
       } catch (error) {
         this.logger.error(
           `Error inesperado enviando el email de confirmación del turno ${confirmedAppointment.id}: ${

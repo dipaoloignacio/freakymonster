@@ -13,7 +13,10 @@ describe('PaymentsService', () => {
         PaymentsService,
         { provide: PrismaService, useValue: {} },
         { provide: AvailabilityService, useValue: {} },
-        { provide: EmailService, useValue: { sendAppointmentConfirmation: jest.fn() } },
+        {
+          provide: EmailService,
+          useValue: { sendCustomerConfirmation: jest.fn(), sendStudioNotification: jest.fn() },
+        },
       ],
     }).compile();
 

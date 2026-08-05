@@ -7,6 +7,28 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 
 const SLOT_TAKEN_MESSAGE = 'Este horario ya no está disponible';
 
+export interface CreateAppointmentOptions {
+  /**
+   * Estado inicial. El wizard público crea PENDING (falta que el cliente
+   * pague o que el estudio confirme); el panel crea CONFIRMED, porque un
+   * turno cargado a mano ya viene acordado por teléfono/WhatsApp.
+   */
+  status: AppointmentStatus;
+  /**
+   * Si el turno tiene que vencer a los 15 minutos cuando el servicio pide
+   * seña. Solo aplica al flujo público, donde ese plazo es la ventana para
+   * pagar online: en un turno cargado por el estudio no hay pago online que
+   * esperar, y dejarlo activado haría que AppointmentExpiryCleanupService lo
+   * cancele solo a los 15 minutos.
+   */
+  applyDepositExpiry: boolean;
+}
+
+const PUBLIC_BOOKING: CreateAppointmentOptions = {
+  status: AppointmentStatus.PENDING,
+  applyDepositExpiry: true,
+};
+
 @Injectable()
 export class AppointmentsService {
   constructor(
@@ -14,7 +36,14 @@ export class AppointmentsService {
     private readonly availabilityService: AvailabilityService,
   ) {}
 
-  async create(dto: CreateAppointmentDto) {
+  /**
+   * `options` existe para que el alta manual del panel (AdminService) pueda
+   * reusar TODA esta lógica — validación de disponibilidad y, sobre todo, la
+   * transacción SERIALIZABLE de más abajo — sin duplicarla. Duplicar el
+   * check-then-insert sería la forma más fácil de terminar con dos criterios
+   * distintos de doble reserva.
+   */
+  async create(dto: CreateAppointmentDto, options: CreateAppointmentOptions = PUBLIC_BOOKING) {
     const { artistId, serviceId, date, startTime, customerName, customerPhone, customerEmail, notes } = dto;
 
     // Reusa TODA la validación de reglas de negocio + la grilla de slots que
@@ -37,7 +66,8 @@ export class AppointmentsService {
     // cliente para pagar antes de liberar el slot). Si no requiere seña, el
     // turno queda PENDING sin presión de tiempo — alguien del estudio lo
     // confirma a mano después.
-    const expiresAt = service!.requiresDeposit ? new Date(Date.now() + 15 * 60_000) : null;
+    const expiresAt =
+      options.applyDepositExpiry && service!.requiresDeposit ? new Date(Date.now() + 15 * 60_000) : null;
 
     // Entre el chequeo de arriba y este INSERT puede colarse otra reserva
     // (dos clientes pidiendo el mismo slot casi al mismo tiempo). Por eso el
@@ -70,7 +100,10 @@ export class AppointmentsService {
               notes,
               startTime: candidateStart,
               endTime: candidateEnd,
-              status: AppointmentStatus.PENDING,
+              status: options.status,
+              // Siempre NONE al crear: la seña la marca el webhook de Mercado
+              // Pago (flujo público) o la coordina el estudio por afuera
+              // (alta manual). Nunca se da por pagada al crear el turno.
               depositStatus: DepositStatus.NONE,
               expiresAt,
             },

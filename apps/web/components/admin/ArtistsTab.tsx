@@ -6,6 +6,7 @@ import {
   assignServiceToArtist,
   createAdminArtist,
   deactivateAdminArtist,
+  deleteAdminArtist,
   fetchAdminArtists,
   fetchAdminServices,
   fetchArtistAvailability,
@@ -77,7 +78,9 @@ export function ArtistsTab({ code }: { code: string }) {
   const [error, setError] = useState<string | null>(null);
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<AdminArtist | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminArtist | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function loadArtists() {
     setLoading(true);
@@ -99,12 +102,31 @@ export function ArtistsTab({ code }: { code: string }) {
   async function handleConfirmDeactivate() {
     if (!deactivateTarget) return;
     setActionError(null);
+    setNotice(null);
     try {
       await deactivateAdminArtist(code, deactivateTarget.id);
       setDeactivateTarget(null);
       await loadArtists();
     } catch {
       setActionError("No pudimos desactivar al tatuador. Probá de nuevo.");
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return;
+    setActionError(null);
+    setNotice(null);
+    try {
+      const result = await deleteAdminArtist(code, deleteTarget.id);
+      setDeleteTarget(null);
+      setNotice(
+        result.deleted
+          ? `"${deleteTarget.name}" se eliminó.`
+          : `No se puede eliminar a "${deleteTarget.name}": tiene ${result.appointmentCount} turno(s) asociado(s). Se desactivó en su lugar.`
+      );
+      await loadArtists();
+    } catch {
+      setActionError("No pudimos eliminar al tatuador. Probá de nuevo.");
     }
   }
 
@@ -127,6 +149,19 @@ export function ArtistsTab({ code }: { code: string }) {
       {actionError && (
         <div className="mb-4">
           <ErrorBox message={actionError} />
+        </div>
+      )}
+
+      {notice && (
+        <div className="clip-notch-sm mb-4 flex items-start justify-between gap-4 border-2 border-toxic bg-toxic/10 p-4 text-sm text-bone">
+          <span>{notice}</span>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="shrink-0 text-xs font-bold uppercase tracking-wide text-toxic"
+          >
+            Cerrar
+          </button>
         </div>
       )}
 
@@ -181,11 +216,20 @@ export function ArtistsTab({ code }: { code: string }) {
                   <button
                     type="button"
                     onClick={() => setDeactivateTarget(artist)}
-                    className="border border-gore px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-gore transition-colors hover:bg-gore hover:text-ink"
+                    className="border border-ash px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-ash transition-colors hover:bg-ash hover:text-ink"
                   >
                     Desactivar
                   </button>
                 )}
+                {/* Destructivo de verdad: relleno sólido, no contorno, para
+                    que no se confunda con "Desactivar", que es reversible. */}
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(artist)}
+                  className="bg-gore px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink transition-opacity hover:opacity-80"
+                >
+                  Eliminar
+                </button>
               </div>
             </div>
           ))}
@@ -225,6 +269,38 @@ export function ArtistsTab({ code }: { code: string }) {
                 className="bg-gore px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink"
               >
                 Sí, desactivar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-6">
+          <div className="w-full max-w-sm border-2 border-gore bg-panel p-6">
+            <h3 className="mb-3 font-display text-lg text-bone">¿Eliminar a {deleteTarget.name}?</h3>
+            <p className="mb-3 text-sm text-ashLight">
+              Se borra el tatuador junto con sus horarios, días bloqueados y servicios asignados.{" "}
+              <strong className="text-bone">Esta acción no se puede deshacer.</strong>
+            </p>
+            <p className="mb-5 text-sm text-ashLight">
+              Si ya tiene turnos asociados no se puede borrar (esos turnos dejarían de tener sentido): en ese
+              caso se desactiva y te avisamos.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="border-2 border-ash px-4 py-2 text-xs font-bold uppercase tracking-wide text-bone"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="bg-gore px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink"
+              >
+                Sí, eliminar
               </button>
             </div>
           </div>

@@ -10,6 +10,7 @@ import { UpdateArtistDto } from './dto/update-artist.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { SetWeeklyAvailabilityDto } from './dto/set-weekly-availability.dto';
+import { CreateAppointmentDto } from '../appointments/dto/create-appointment.dto';
 import { artistImageMulterOptions } from './multer-artist-image.config';
 
 @Controller('admin')
@@ -20,6 +21,14 @@ export class AdminController {
   @Get('appointments')
   findAppointments(@Query() dto: GetAdminAppointmentsDto) {
     return this.adminService.findAppointments(dto);
+  }
+
+  // Alta manual (reserva por teléfono/WhatsApp): mismo body que el POST
+  // /appointments público, pero nace CONFIRMED y sin vencimiento de seña.
+  // Ver AdminService.createAppointment().
+  @Post('appointments')
+  createAppointment(@Body() dto: CreateAppointmentDto) {
+    return this.adminService.createAppointment(dto);
   }
 
   @Patch('appointments/:id')
@@ -60,9 +69,12 @@ export class AdminController {
     return this.adminService.updateArtist(id, dto, file);
   }
 
+  // Borra de verdad solo si el tatuador nunca tuvo turnos; si los tiene,
+  // degrada a desactivación. Ver AdminService.deleteArtist().
+  // Para solo desactivar: PATCH artists/:id con active=false.
   @Delete('artists/:id')
-  deactivateArtist(@Param('id') id: string) {
-    return this.adminService.deactivateArtist(id);
+  deleteArtist(@Param('id') id: string) {
+    return this.adminService.deleteArtist(id);
   }
 
   @Get('artists/:id/availability')

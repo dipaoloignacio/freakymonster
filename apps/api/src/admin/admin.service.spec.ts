@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AdminService } from './admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from '../availability/availability.service';
+import { AppointmentsService } from '../appointments/appointments.service';
+import { EmailService } from '../notifications/email.service';
 
 describe('AdminService', () => {
   let service: AdminService;
@@ -12,6 +14,8 @@ describe('AdminService', () => {
         AdminService,
         { provide: PrismaService, useValue: {} },
         { provide: AvailabilityService, useValue: {} },
+        { provide: AppointmentsService, useValue: {} },
+        { provide: EmailService, useValue: {} },
       ],
     }).compile();
 

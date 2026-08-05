@@ -18,7 +18,7 @@ describe('AdminController', () => {
             listArtists: jest.fn(),
             createArtist: jest.fn(),
             updateArtist: jest.fn(),
-            deactivateArtist: jest.fn(),
+            deleteArtist: jest.fn(),
             listServices: jest.fn(),
             createService: jest.fn(),
             updateService: jest.fn(),

@@ -27,28 +27,34 @@ export class EmailService {
   }
 
   /**
-   * Dispara los emails de confirmación de un turno recién CONFIRMED. Nunca
-   * tira una excepción hacia afuera: un email caído no puede voltear la
-   * confirmación del turno ni la respuesta al webhook de Mercado Pago que
-   * la disparó. Cualquier falla queda logueada, no silenciada del todo.
+   * Los dos destinatarios de un turno recién CONFIRMED están separados porque
+   * no todos los caminos necesitan los dos: el alta manual del panel solo le
+   * escribe al cliente, porque el aviso al estudio sería avisarle de un turno
+   * que acaba de cargar a mano. El webhook de Mercado Pago sí manda los dos
+   * (ver PaymentsService): ahí la reserva entró sola y el estudio se tiene
+   * que enterar.
+   *
+   * Ninguno de los dos tira excepciones hacia afuera: un email caído no puede
+   * voltear la confirmación del turno ni la respuesta al webhook que la
+   * disparó. Cualquier falla queda logueada, no silenciada del todo.
    */
-  async sendAppointmentConfirmation(appointment: AppointmentForEmail): Promise<void> {
-    const whenLocal = formatLocalDateTime(appointment.startTime);
+  async sendCustomerConfirmation(appointment: AppointmentForEmail): Promise<void> {
+    // customerEmail es opcional en el DTO: sin email no hay nada que mandar,
+    // y el chequeo vive acá para que ningún llamador tenga que acordarse.
+    if (!appointment.customerEmail) return;
 
-    // Al cliente, solo si dejó email (customerEmail es opcional en el DTO).
-    if (appointment.customerEmail) {
-      await this.trySend({
-        to: appointment.customerEmail,
-        subject: 'Tu turno en Freaky Monster Tattoo Studio está confirmado',
-        html: this.buildCustomerEmailHtml(appointment, whenLocal),
-      });
-    }
+    await this.trySend({
+      to: appointment.customerEmail,
+      subject: 'Tu turno en Freaky Monster Tattoo Studio está confirmado',
+      html: this.buildCustomerEmailHtml(appointment, formatLocalDateTime(appointment.startTime)),
+    });
+  }
 
-    // Al estudio, siempre.
+  async sendStudioNotification(appointment: AppointmentForEmail): Promise<void> {
     await this.trySend({
       to: this.studioEmail,
       subject: `Nueva reserva confirmada — ${appointment.customerName}`,
-      html: this.buildStudioEmailHtml(appointment, whenLocal),
+      html: this.buildStudioEmailHtml(appointment, formatLocalDateTime(appointment.startTime)),
     });
   }
 
@@ -74,35 +80,51 @@ export class EmailService {
     }
   }
 
-  private buildCustomerEmailHtml(appointment: AppointmentForEmail, whenLocal: string): string {
+  /** Cascarón común de los dos mails: mismo estilo, distinto contenido. */
+  private buildEmailHtml(heading: string, body: string): string {
     return `
       <div style="font-family: sans-serif; line-height: 1.5; color: #1a1a1a;">
-        <h2>¡Turno confirmado!</h2>
-        <p>Hola ${appointment.customerName},</p>
-        <p>Tu turno en <strong>Freaky Monster Tattoo Studio</strong> quedó confirmado:</p>
-        <ul>
-          <li><strong>Tatuador/a:</strong> ${appointment.artist.name}</li>
-          <li><strong>Servicio:</strong> ${appointment.service.name}</li>
-          <li><strong>Fecha y hora:</strong> ${whenLocal} (hora Mendoza)</li>
-        </ul>
-        <p>Cualquier consulta, escribinos por WhatsApp al ${STUDIO_WHATSAPP}.</p>
-        <p>¡Te esperamos!</p>
+        <h2>${heading}</h2>
+        ${body}
       </div>
     `;
   }
 
-  private buildStudioEmailHtml(appointment: AppointmentForEmail, whenLocal: string): string {
+  /** Los datos del turno en sí, idénticos para el cliente y para el estudio.
+   *  Cada destinatario agrega arriba/abajo las filas que solo le sirven a él. */
+  private buildAppointmentRows(appointment: AppointmentForEmail, whenLocal: string): string {
     return `
-      <div style="font-family: sans-serif; line-height: 1.5; color: #1a1a1a;">
-        <h2>Nueva reserva confirmada</h2>
+      <li><strong>Tatuador/a:</strong> ${appointment.artist.name}</li>
+      <li><strong>Servicio:</strong> ${appointment.service.name}</li>
+      <li><strong>Fecha y hora:</strong> ${whenLocal} (hora Mendoza)</li>
+    `;
+  }
+
+  private buildCustomerEmailHtml(appointment: AppointmentForEmail, whenLocal: string): string {
+    return this.buildEmailHtml(
+      '¡Turno confirmado!',
+      `
+        <p>Hola ${appointment.customerName},</p>
+        <p>Tu turno en <strong>Freaky Monster Tattoo Studio</strong> quedó confirmado:</p>
+        <ul>
+          ${this.buildAppointmentRows(appointment, whenLocal)}
+        </ul>
+        <p>Cualquier consulta, escribinos por WhatsApp al ${STUDIO_WHATSAPP}.</p>
+        <p>¡Te esperamos!</p>
+      `,
+    );
+  }
+
+  private buildStudioEmailHtml(appointment: AppointmentForEmail, whenLocal: string): string {
+    return this.buildEmailHtml(
+      'Nueva reserva confirmada',
+      `
         <ul>
           <li><strong>Cliente:</strong> ${appointment.customerName}</li>
-          <li><strong>Tatuador/a:</strong> ${appointment.artist.name}</li>
-          <li><strong>Servicio:</strong> ${appointment.service.name}</li>
-          <li><strong>Fecha y hora:</strong> ${whenLocal} (hora Mendoza)</li>
+          ${this.buildAppointmentRows(appointment, whenLocal)}
           <li><strong>ID del turno:</strong> ${appointment.id}</li>
         </ul>
-      </div>
-    `;
+      `,
+    );
   }
 }

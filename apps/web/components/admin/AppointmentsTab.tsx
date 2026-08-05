@@ -15,8 +15,10 @@ import {
   isoToMendozaDateString,
   todayDateString,
 } from "@/lib/mendozaTime";
+import { whatsAppUrl } from "@/lib/phone";
 import { ErrorBox, Spinner } from "@/components/reservation/shared";
 import { RescheduleModal } from "./RescheduleModal";
+import { NewAppointmentModal } from "./NewAppointmentModal";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "Pendiente",
@@ -35,6 +37,31 @@ const DEPOSIT_LABEL: Record<string, string> = {
   PENDING: "Seña pendiente",
   PAID: "Seña pagada",
 };
+
+/**
+ * El teléfono es link a WhatsApp solo si se lo puede normalizar a un número
+ * argentino válido (ver lib/phone.ts). Si no, se muestra como texto plano:
+ * mandar a WhatsApp a un número mal armado es peor que no ofrecer el link.
+ */
+function CustomerPhone({ phone }: { phone: string }) {
+  const url = whatsAppUrl(phone);
+
+  if (!url) {
+    return <div className="text-xs text-ashLight">{phone}</div>;
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Abrir chat de WhatsApp"
+      className="text-xs text-toxic underline decoration-dotted underline-offset-2 transition-colors hover:text-bone"
+    >
+      {phone}
+    </a>
+  );
+}
 
 /**
  * Parte la lista (que ya viene ordenada por startTime asc del backend) en
@@ -65,6 +92,7 @@ export function AppointmentsTab({ code }: { code: string }) {
 
   const [cancelTarget, setCancelTarget] = useState<AdminAppointment | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<AdminAppointment | null>(null);
+  const [creating, setCreating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -113,6 +141,14 @@ export function AppointmentsTab({ code }: { code: string }) {
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-end gap-4">
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="clip-notch-sm order-last ml-auto bg-gore px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-ink"
+        >
+          + Nuevo turno
+        </button>
+
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ash">
           Tatuador
           <select
@@ -215,7 +251,7 @@ export function AppointmentsTab({ code }: { code: string }) {
                   <td className="px-3 py-2.5">{appointment.service.name}</td>
                   <td className="px-3 py-2.5">
                     <div>{appointment.customerName}</div>
-                    <div className="text-xs text-ashLight">{appointment.customerPhone}</div>
+                    <CustomerPhone phone={appointment.customerPhone} />
                   </td>
                   <td className="px-3 py-2.5">
                     <span
@@ -280,6 +316,17 @@ export function AppointmentsTab({ code }: { code: string }) {
             </div>
           </div>
         </div>
+      )}
+
+      {creating && (
+        <NewAppointmentModal
+          code={code}
+          onClose={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false);
+            loadAppointments();
+          }}
+        />
       )}
 
       {rescheduleTarget && (

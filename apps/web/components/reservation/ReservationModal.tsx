@@ -319,6 +319,7 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
                   slotIso={slotIso}
                   onSubmit={handleSubmitCustomer}
                   onBack={goBack}
+                  stepInfo={{ step: 5, total: 5 }}
                 />
               )}
               {step === "success" && artist && service && date && slotIso && (

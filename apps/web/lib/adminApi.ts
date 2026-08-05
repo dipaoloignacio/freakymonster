@@ -66,6 +66,33 @@ export function fetchAdminAppointments(
   return adminRequest(code, `/admin/appointments${qs ? `?${qs}` : ""}`);
 }
 
+export interface CreateAdminAppointmentPayload {
+  artistId: string;
+  serviceId: string;
+  date: string; // "YYYY-MM-DD"
+  startTime: string; // "HH:mm", hora Mendoza
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  notes?: string;
+}
+
+/**
+ * Alta manual (reserva por teléfono/WhatsApp). Mismo body que el alta
+ * pública, pero el turno nace CONFIRMED y sin vencimiento de seña — ver
+ * AdminService.createAppointment() en el backend.
+ */
+export function createAdminAppointment(
+  code: string,
+  payload: CreateAdminAppointmentPayload
+): Promise<AdminAppointment> {
+  return adminRequest(code, "/admin/appointments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function cancelAdminAppointment(code: string, id: string): Promise<AdminAppointment> {
   return adminRequest(code, `/admin/appointments/${id}`, {
     method: "PATCH",
@@ -169,7 +196,19 @@ export function updateAdminArtist(code: string, id: string, input: ArtistFormInp
   });
 }
 
+/** Desactivar es un update común: el tatuador y su historial quedan intactos. */
 export function deactivateAdminArtist(code: string, id: string): Promise<AdminArtist> {
+  return updateAdminArtist(code, id, { active: false });
+}
+
+/**
+ * `deleted: false` significa que el tatuador ya tenía turnos y el backend lo
+ * desactivó en vez de borrarlo — hay que decirlo, no mentir con "eliminado".
+ */
+export function deleteAdminArtist(
+  code: string,
+  id: string
+): Promise<{ deleted: boolean; appointmentCount: number; artist: AdminArtist }> {
   return adminRequest(code, `/admin/artists/${id}`, { method: "DELETE" });
 }
 

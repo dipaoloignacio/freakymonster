@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useBookingModal } from "@/components/BookingModal";
+import { useReservationModal } from "@/components/reservation/ReservationModal";
 import { whatsappConsultaUrl } from "@/data/content";
 
 export default function Hero() {
-  const { openModal } = useBookingModal();
+  const { openModal } = useReservationModal();
 
   return (
     <section

@@ -13,14 +13,17 @@ async function bootstrap() {
   // ver Fase 8 (deploy) del README.
   app.setGlobalPrefix('api');
 
-  // CORS deshabilitado a propósito: frontend y backend quedan bajo el mismo
-  // origen (freakymonster.dipaoloproyects.space) detrás de Nginx, así que el
-  // navegador nunca hace una request cross-origin hacia esta API. Si en el
-  // futuro el frontend se separa a otro dominio (o se agrega una app
-  // mobile/otro cliente en otro origen), va a hacer falta volver a habilitar
-  // esto con app.enableCors({ origin: [...] }) — no lo saqué, lo dejo acá
-  // documentado para que no se reintroduzca a ciegas.
-  // app.enableCors({ origin: ['https://ejemplo-de-otro-origen.com'] });
+  // CORS solo en desarrollo local: ahí `apps/web` (3000) y `apps/api` (3001)
+  // son dos orígenes distintos, así que el navegador exige el header. En
+  // producción quedan bajo el mismo origen detrás de Nginx (/api/*), no hay
+  // request cross-origin real y no hace falta — por eso esto está atado a
+  // NODE_ENV en vez de habilitado siempre. El Dockerfile de producción fija
+  // NODE_ENV=production en la imagen final (ver apps/api/Dockerfile), y en
+  // dev (`npm run dev:api`) nunca se setea, así que la condición de abajo
+  // es un signal confiable sin necesitar una env var nueva.
+  if (process.env.NODE_ENV !== 'production') {
+    app.enableCors({ origin: 'http://localhost:3000' });
+  }
 
   await app.listen(process.env.PORT ?? 3001);
 }

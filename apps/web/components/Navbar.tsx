@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { useBookingModal } from "@/components/BookingModal";
+import { useReservationModal } from "@/components/reservation/ReservationModal";
 
 const links = [
   { href: "#sobre", label: "Sobre" },
@@ -14,7 +14,7 @@ const links = [
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
-  const { openModal } = useBookingModal();
+  const { openModal } = useReservationModal();
 
   return (
     <nav className="sticky top-0 z-[100] border-b-2 border-plum bg-ink/95 backdrop-blur-sm">

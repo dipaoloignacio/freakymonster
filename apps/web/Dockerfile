@@ -15,6 +15,11 @@ COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/package.json /repo/package-lock.json ./
 COPY apps/web apps/web
 COPY apps/api/package.json apps/api/package.json
+# NEXT_PUBLIC_* se incrusta en el bundle en tiempo de build, no de runtime —
+# por eso es un ARG acá y no una env var del contenedor final. Default /api
+# porque en producción todo vive bajo el mismo dominio detrás de Nginx.
+ARG NEXT_PUBLIC_API_URL=/api
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN npm run build -w apps/web
 
 # En un monorepo con npm workspaces, `output: standalone` anida el resultado

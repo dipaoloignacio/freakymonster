@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Anton, Cinzel, Oswald, UnifrakturMaguntia } from "next/font/google";
-import { BookingModalProvider } from "@/components/BookingModal";
+import { ReservationModalProvider } from "@/components/reservation/ReservationModal";
 import "./globals.css";
 
 const cinzel = Cinzel({
@@ -100,7 +100,7 @@ export default function RootLayout({
       <body
         className={`${cinzel.variable} ${oswald.variable} ${unifraktur.variable} ${anton.variable} font-body`}
       >
-        <BookingModalProvider>{children}</BookingModalProvider>
+        <ReservationModalProvider>{children}</ReservationModalProvider>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}

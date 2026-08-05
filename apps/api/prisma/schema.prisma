@@ -11,6 +11,7 @@ model Artist {
   name        String
   bio         String?
   specialties String[]
+  imageUrl    String?
   active      Boolean  @default(true)
 
   services     ArtistService[]

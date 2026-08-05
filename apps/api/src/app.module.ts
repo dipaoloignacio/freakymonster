@@ -8,6 +8,7 @@ import { AvailabilityModule } from './availability/availability.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ArtistsModule } from './artists/artists.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AppointmentsModule,
     PaymentsModule,
     NotificationsModule,
+    ArtistsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

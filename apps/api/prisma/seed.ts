@@ -22,6 +22,7 @@ async function main() {
       name: 'Renzo',
       bio: 'Especialista en blackwork y realismo.',
       specialties: ['blackwork', 'realismo'],
+      imageUrl: '/artists/renzo.jpg',
     },
   });
   const cata = await prisma.artist.create({
@@ -29,6 +30,7 @@ async function main() {
       name: 'Cata',
       bio: 'Old school y color.',
       specialties: ['old school', 'color'],
+      imageUrl: '/artists/cata.jpg',
     },
   });
 

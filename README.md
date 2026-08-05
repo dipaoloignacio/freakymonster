@@ -206,12 +206,12 @@ pm2 list           # chatup-api, chatup-bot, parties-api, ws-mapbox-api siguen o
 
 ### Cosas a tener en cuenta
 
-- El frontend (`apps/web`) **todavía no consume la API propia** — el flujo
-  de reservas actual usa el embed de Cal.com (`BookingModal.tsx`). El
-  backend (`/api/availability`, `/api/appointments`, `/api/payments/*`)
-  está desplegado y funcionando, pero nada lo llama todavía desde la UI.
-  Esto es una decisión consciente, no un olvido — ver el historial del
-  proyecto (Fase 8) si hace falta más contexto.
+- El frontend (`apps/web`) tiene su propio wizard de reserva
+  (`components/reservation/ReservationModal.tsx`, Fases 9a/9b), que
+  consume la API propia de punta a punta: tatuador → servicio → fecha →
+  horario → datos del cliente → creación del turno → redirect a Mercado
+  Pago si el servicio requiere seña. El embed de Cal.com que se usó
+  originalmente (`BookingModal.tsx`) ya no existe en el proyecto.
 - Sin credenciales reales de Mercado Pago/Resend en `.env.production`, la
   creación de turnos y disponibilidad funcionan igual; lo que falla es
   generar la preferencia de pago y el envío de emails de confirmación

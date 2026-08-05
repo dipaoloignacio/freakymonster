@@ -59,6 +59,12 @@ services:
       - api
     environment:
       PORT: 3000
+      # URL que usa el RENDER DEL SERVIDOR para leer la API (la sección
+      # Artistas de la home). No confundir con NEXT_PUBLIC_API_URL, que es la
+      # del navegador y vale "/api": relativa, y por lo tanto imposible de
+      # fetchear desde el servidor. Va por el nombre de servicio de la red
+      # interna de compose, sin pasar por Nginx. Ver apps/web/lib/serverApi.ts.
+      API_INTERNAL_URL: http://api:3001/api
     ports:
       - "127.0.0.1:${WEB_PORT:-3300}:3000"
 

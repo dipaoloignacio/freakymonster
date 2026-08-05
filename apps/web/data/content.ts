@@ -22,28 +22,10 @@ export const gallery: { label: string; image?: string }[] = [
   { label: "Blackwork — pierna", image: "/gallery/split-face.png" },
 ];
 
-export const artists = [
-  {
-    name: 'Renzo "Cuervo" Díaz',
-    specialty: "Blackwork / Dotwork",
-    image: "/artists/renzo.jpg",
-  },
-  {
-    name: "Malena Vidal",
-    specialty: "Realismo / Retratos",
-    image: "/artists/malena.jpg",
-  },
-  {
-    name: 'Tomás "Lobo" Ferreyra',
-    specialty: "Old School / Neotradicional",
-    image: "/artists/tomas.jpg",
-  },
-  {
-    name: "Cata Duarte",
-    specialty: "Fine Line / Minimalista",
-    image: "/artists/cata.jpg",
-  },
-];
+// Los tatuadores NO van acá: salen de la base vía GET /api/artists, así que
+// el panel de admin es la única fuente. Ver components/Artists.tsx.
+// (Las fotos en public/artists/ siguen en uso: son las que referencia el
+// imageUrl de los tatuadores del seed — ver apps/api/prisma/seed.ts.)
 
 export const styles = [
   { name: "Blackwork" },

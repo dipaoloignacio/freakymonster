@@ -164,6 +164,18 @@ contraseña — no se pueden automatizar del todo por SSH no interactivo.
      exec api sh -c "cd apps/api && npx prisma migrate deploy"
    ```
 
+   **(Opcional) Sembrar datos de prueba** — solo mientras el estudio no
+   tenga sus tatuadores/servicios reales cargados. La imagen de producción
+   se instala con `npm ci --omit=dev`, así que `ts-node` no está disponible
+   y `npx prisma db seed` falla con `ENOENT`. `nest build` sí compila
+   `prisma/seed.ts` a `dist/prisma/seed.js`, así que hay que correr el
+   compilado directo con `node`:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.production \
+     exec api sh -c "cd apps/api && node dist/prisma/seed.js"
+   ```
+
 5. **Configurar Nginx** (solo hace falta la primera vez que se monta el
    servidor — si ya existe `/etc/nginx/sites-available/freakymonster`, saltar
    a este paso salvo que haya cambiado el routing). El config de referencia

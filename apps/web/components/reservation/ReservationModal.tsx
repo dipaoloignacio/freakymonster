@@ -12,22 +12,33 @@ import {
 import {
   ApiError,
   createAppointment,
+  createPaymentPreference,
   fetchArtists,
   type Artist,
   type ArtistServiceOption,
 } from "@/lib/api";
 import { isoToMendozaHHmm } from "@/lib/mendozaTime";
+import { whatsappPaymentIssueUrl } from "@/data/content";
 import { ArtistStep } from "./ArtistStep";
 import { ServiceStep } from "./ServiceStep";
 import { DateStep } from "./DateStep";
 import { TimeStep } from "./TimeStep";
 import { CustomerStep, type CustomerFormData } from "./CustomerStep";
 import { SuccessStep } from "./SuccessStep";
+import { ErrorBox, PrimaryButton, Spinner } from "./shared";
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
-type WizardStep = "artist" | "service" | "date" | "time" | "customer" | "success";
+type WizardStep =
+  | "artist"
+  | "service"
+  | "date"
+  | "time"
+  | "customer"
+  | "success"
+  | "redirecting"
+  | "paymentError";
 
 type ReservationModalContextValue = {
   openModal: () => void;
@@ -190,15 +201,17 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
   // cualquier otro error sí.
   async function handleSubmitCustomer(data: CustomerFormData) {
     if (!artist || !service || !date || !slotIso) return;
+
+    let appointmentId: string;
     try {
-      await createAppointment({
+      const appointment = await createAppointment({
         artistId: artist.id,
         serviceId: service.id,
         date,
         startTime: isoToMendozaHHmm(slotIso),
         ...data,
       });
-      setStep("success");
+      appointmentId = appointment.id;
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setConflictMessage("Ese horario se acaba de ocupar, elegí otro.");
@@ -208,6 +221,22 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
         return;
       }
       throw err;
+    }
+
+    // El turno ya está creado (PENDING) en este punto, pase lo que pase de
+    // acá en adelante — un error de Mercado Pago no lo pierde, solo impide
+    // el redirect automático al pago.
+    if (!service.requiresDeposit) {
+      setStep("success");
+      return;
+    }
+
+    setStep("redirecting");
+    try {
+      const { initPoint } = await createPaymentPreference(appointmentId);
+      window.location.href = initPoint;
+    } catch {
+      setStep("paymentError");
     }
   }
 
@@ -292,6 +321,23 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
                   slotIso={slotIso}
                   onClose={closeModal}
                 />
+              )}
+              {step === "redirecting" && <Spinner label="Redirigiendo a Mercado Pago…" />}
+              {step === "paymentError" && (
+                <div>
+                  <ErrorBox message="Tu reserva se creó, pero no pudimos iniciar el pago de la seña. Contactanos por WhatsApp para coordinarlo." />
+                  <div className="mt-5 flex justify-center gap-3">
+                    <a
+                      href={whatsappPaymentIssueUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="clip-notch-sm bg-gore px-6 py-3 text-sm font-bold uppercase tracking-wide text-ink no-underline"
+                    >
+                      Escribinos por WhatsApp
+                    </a>
+                    <PrimaryButton onClick={closeModal}>Cerrar</PrimaryButton>
+                  </div>
+                </div>
               )}
             </div>
           </div>

@@ -6,6 +6,10 @@ export const whatsappConsultaUrl =
   "https://wa.me/5492617199005?text=" +
   encodeURIComponent("Hola! Quiero consultar sobre un tatuaje.");
 
+export const whatsappPaymentIssueUrl =
+  "https://wa.me/5492617199005?text=" +
+  encodeURIComponent("Hola! Tuve un problema pagando la seña de mi turno.");
+
 export const gallery: { label: string; image?: string }[] = [
   { label: "Blackwork — antebrazo", image: "/gallery/spider.png" },
   { label: "Realismo — retrato", image: "/gallery/cupcake.png" },

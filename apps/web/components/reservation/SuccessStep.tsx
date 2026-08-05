@@ -22,7 +22,7 @@ export function SuccessStep({
       </div>
       <h3 className="mb-2 font-display text-2xl text-bone">¡Reserva creada!</h3>
       <p className="mb-6 max-w-sm text-sm text-ashLight">
-        Te vamos a contactar para coordinar la seña. Guardá esta info:
+        Te vamos a contactar para coordinar los últimos detalles. Guardá esta info:
       </p>
       <div className="clip-notch-sm mb-8 w-full max-w-sm border-2 border-plum bg-panel p-4 text-left text-sm text-ashLight">
         <div>

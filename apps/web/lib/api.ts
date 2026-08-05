@@ -106,3 +106,20 @@ export async function createAppointment(payload: CreateAppointmentPayload): Prom
 
   return response.json();
 }
+
+export interface PaymentPreference {
+  initPoint: string;
+  preferenceId: string;
+}
+
+export async function createPaymentPreference(appointmentId: string): Promise<PaymentPreference> {
+  const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/payment-preference`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await extractErrorMessage(response));
+  }
+
+  return response.json();
+}

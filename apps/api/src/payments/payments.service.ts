@@ -7,8 +7,16 @@ import { AvailabilityService } from '../availability/availability.service';
 import { STUDIO_TIMEZONE } from '../common/timezone';
 import { EmailService, AppointmentForEmail } from '../notifications/email.service';
 
-// Placeholders hasta tener el dominio real del frontend.
-const FRONTEND_BASE_URL = 'https://tudominio.com';
+// Igual que el CORS condicional de main.ts: en local, `apps/web` corre en
+// localhost:3000, así que las back_urls tienen que apuntar ahí para poder
+// probar el flujo de pago de punta a punta en desarrollo. En producción
+// (NODE_ENV=production, fijado en el Dockerfile) apuntan al dominio real —
+// hardcodear siempre el dominio real rompería el testing local, porque
+// Mercado Pago redirigiría al sitio en vivo en vez de al servidor de dev.
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const FRONTEND_BASE_URL = IS_PRODUCTION
+  ? 'https://freakymonster.dipaoloproyects.space'
+  : 'http://localhost:3000';
 
 @Injectable()
 export class PaymentsService {
@@ -54,6 +62,15 @@ export class PaymentsService {
           pending: `${FRONTEND_BASE_URL}/turno/pendiente`,
           failure: `${FRONTEND_BASE_URL}/turno/error`,
         },
+        // Sin esto, MP se queda en su propia pantalla de "congrats" después
+        // del pago y espera a que el cliente haga click en "volver" a mano
+        // — con auto_return, redirige solo a back_urls.success ni bien el
+        // pago queda approved. PERO la API de MP rechaza auto_return si
+        // back_urls no son URLs públicas (400 "auto_return invalid" con
+        // localhost, confirmado a mano) — así que solo lo mandamos en
+        // producción. En dev, hay que clickear "volver al sitio" a mano
+        // en la pantalla de MP; no hay forma de evitarlo con localhost.
+        ...(IS_PRODUCTION ? { auto_return: 'approved' as const } : {}),
       },
     });
 

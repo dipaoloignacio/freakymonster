@@ -7,6 +7,8 @@ import { UpdateAdminAppointmentDto } from './dto/update-admin-appointment.dto';
 import { CreateAvailabilityBlockDto } from './dto/create-availability-block.dto';
 import { CreateArtistDto } from './dto/create-artist.dto';
 import { UpdateArtistDto } from './dto/update-artist.dto';
+import { CreateServiceDto } from './dto/create-service.dto';
+import { UpdateServiceDto } from './dto/update-service.dto';
 import { artistImageMulterOptions } from './multer-artist-image.config';
 
 @Controller('admin')
@@ -49,5 +51,37 @@ export class AdminController {
   @Delete('artists/:id')
   deactivateArtist(@Param('id') id: string) {
     return this.adminService.deactivateArtist(id);
+  }
+
+  @Get('services')
+  findServices() {
+    return this.adminService.listServices();
+  }
+
+  @Post('services')
+  createService(@Body() dto: CreateServiceDto) {
+    return this.adminService.createService(dto);
+  }
+
+  @Patch('services/:id')
+  updateService(@Param('id') id: string, @Body() dto: UpdateServiceDto) {
+    return this.adminService.updateService(id, dto);
+  }
+
+  // Borra de verdad solo si el servicio nunca se usó; si ya tiene turnos,
+  // degrada a desactivación. Ver AdminService.deleteService().
+  @Delete('services/:id')
+  deleteService(@Param('id') id: string) {
+    return this.adminService.deleteService(id);
+  }
+
+  @Post('artists/:artistId/services/:serviceId')
+  assignServiceToArtist(@Param('artistId') artistId: string, @Param('serviceId') serviceId: string) {
+    return this.adminService.assignServiceToArtist(artistId, serviceId);
+  }
+
+  @Delete('artists/:artistId/services/:serviceId')
+  unassignServiceFromArtist(@Param('artistId') artistId: string, @Param('serviceId') serviceId: string) {
+    return this.adminService.unassignServiceFromArtist(artistId, serviceId);
   }
 }

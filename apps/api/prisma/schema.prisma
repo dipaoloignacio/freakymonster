@@ -26,6 +26,7 @@ model Service {
   durationMinutes Int
   requiresDeposit Boolean  @default(false)
   depositAmount   Decimal? @db.Decimal(10, 2)
+  active          Boolean  @default(true)
 
   artists      ArtistService[]
   appointments Appointment[]

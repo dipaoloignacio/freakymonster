@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 import { ApiError, resolveAssetUrl } from "@/lib/api";
 import {
+  assignServiceToArtist,
   createAdminArtist,
   deactivateAdminArtist,
   fetchAdminArtists,
+  fetchAdminServices,
+  unassignServiceFromArtist,
   updateAdminArtist,
   type AdminArtist,
+  type AdminService,
 } from "@/lib/adminApi";
 import { ErrorBox, Spinner } from "@/components/reservation/shared";
+import { formatDuration } from "./ServicesTab";
 
 type FormTarget = "new" | AdminArtist;
 
@@ -198,6 +203,58 @@ function ArtistForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Qué servicios ofrece este tatuador (tabla ArtistService). La relación se
+  // edita acá y no en la pestaña Servicios: ver el comentario de
+  // ServicesSelector más abajo.
+  const artistId = isNew ? null : target.id;
+  const [services, setServices] = useState<AdminService[] | null>(null);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(new Set());
+  // Snapshot de cómo estaba al abrir el formulario, para calcular al guardar
+  // qué se agregó y qué se sacó (la API asigna/desasigna de a un par).
+  const [initialServiceIds, setInitialServiceIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let active = true;
+    fetchAdminServices(code)
+      .then((data) => {
+        if (!active) return;
+        setServices(data);
+        if (artistId) {
+          const assigned = new Set(
+            data.filter((s) => s.artists.some((a) => a.id === artistId)).map((s) => s.id)
+          );
+          setSelectedServiceIds(assigned);
+          setInitialServiceIds(assigned);
+        }
+      })
+      .catch(() => {
+        // El resto del formulario sigue siendo usable sin la lista de
+        // servicios; se avisa donde iría el selector.
+        if (active) setServices([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [code, artistId]);
+
+  function toggleService(serviceId: string) {
+    setSelectedServiceIds((current) => {
+      const next = new Set(current);
+      if (next.has(serviceId)) next.delete(serviceId);
+      else next.add(serviceId);
+      return next;
+    });
+  }
+
+  async function syncArtistServices(id: string) {
+    const toAssign = [...selectedServiceIds].filter((serviceId) => !initialServiceIds.has(serviceId));
+    const toUnassign = [...initialServiceIds].filter((serviceId) => !selectedServiceIds.has(serviceId));
+    await Promise.all([
+      ...toAssign.map((serviceId) => assignServiceToArtist(code, id, serviceId)),
+      ...toUnassign.map((serviceId) => unassignServiceFromArtist(code, id, serviceId)),
+    ]);
+  }
+
   // Solo el blob local (creado acá al elegir un archivo) necesita
   // revocarse — el previewUrl inicial, si viene de target.imageUrl, es una
   // URL del backend y no nos pertenece.
@@ -241,13 +298,17 @@ function ArtistForm({
     setSubmitting(true);
     setError(null);
     try {
+      // El alta tiene que ir primero: las asignaciones necesitan el id que
+      // recién existe después de crear al tatuador.
+      let savedId: string;
       if (isNew) {
-        await createAdminArtist(code, {
+        const created = await createAdminArtist(code, {
           name: name.trim(),
           bio: bio.trim() || undefined,
           specialties,
           image: imageFile,
         });
+        savedId = created.id;
       } else {
         await updateAdminArtist(code, target.id, {
           name: name.trim(),
@@ -256,7 +317,9 @@ function ArtistForm({
           active,
           image: imageFile,
         });
+        savedId = target.id;
       }
+      await syncArtistServices(savedId);
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No pudimos guardar al tatuador. Probá de nuevo.");
@@ -340,6 +403,55 @@ function ArtistForm({
                 className="min-w-[140px] flex-1 bg-transparent px-1 py-1 text-sm normal-case tracking-normal text-bone outline-none"
               />
             </div>
+          </div>
+
+          {/*
+            La asignación tatuador↔servicio vive acá y no en la pestaña
+            Servicios porque "qué hago" es parte del perfil del tatuador —
+            queda al lado de sus especialidades, y espeja el orden del wizard
+            de reserva (primero elegís tatuador, después ves sus servicios).
+            La pestaña Servicios queda para definir el servicio en sí
+            (duración, seña), que no depende de quién lo haga.
+          */}
+          <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ash">
+            Servicios que ofrece
+            {services === null ? (
+              <p className="border-2 border-plum bg-ink px-3 py-2 text-sm normal-case tracking-normal text-ashLight">
+                Cargando servicios…
+              </p>
+            ) : services.length === 0 ? (
+              <p className="border-2 border-plum bg-ink px-3 py-2 text-sm normal-case tracking-normal text-ashLight">
+                No hay servicios cargados todavía. Creá alguno en la pestaña Servicios.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 border-2 border-plum bg-ink p-3">
+                {services.map((service) => (
+                  <label
+                    key={service.id}
+                    className="flex items-center gap-2 text-sm normal-case tracking-normal text-bone"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedServiceIds.has(service.id)}
+                      onChange={() => toggleService(service.id)}
+                      className="h-4 w-4 accent-gore"
+                    />
+                    <span>{service.name}</span>
+                    <span className="text-xs text-ashLight">({formatDuration(service.durationMinutes)})</span>
+                    {service.requiresDeposit && (
+                      <span className="border border-toxic px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-toxic">
+                        Seña
+                      </span>
+                    )}
+                    {!service.active && (
+                      <span className="border border-ash px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ash">
+                        Inactivo
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ash">

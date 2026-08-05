@@ -150,3 +150,65 @@ export function updateAdminArtist(code: string, id: string, input: ArtistFormInp
 export function deactivateAdminArtist(code: string, id: string): Promise<AdminArtist> {
   return adminRequest(code, `/admin/artists/${id}`, { method: "DELETE" });
 }
+
+export interface AdminService {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  requiresDeposit: boolean;
+  // Decimal de Prisma — viaja como string en JSON, no como number, para no
+  // perder precisión. Convertir con Number() solo para mostrar/editar.
+  depositAmount: string | null;
+  active: boolean;
+  // Qué tatuadores lo ofrecen. Solo lectura desde la pestaña Servicios; se
+  // edita desde el formulario del tatuador (ver ArtistsTab).
+  artists: { id: string; name: string }[];
+}
+
+export interface ServiceFormInput {
+  name?: string;
+  durationMinutes?: number;
+  requiresDeposit?: boolean;
+  depositAmount?: number;
+  active?: boolean;
+}
+
+export function fetchAdminServices(code: string): Promise<AdminService[]> {
+  return adminRequest(code, "/admin/services");
+}
+
+export function createAdminService(
+  code: string,
+  input: ServiceFormInput & { name: string; durationMinutes: number }
+): Promise<AdminService> {
+  return adminRequest(code, "/admin/services", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateAdminService(code: string, id: string, input: ServiceFormInput): Promise<AdminService> {
+  return adminRequest(code, `/admin/services/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+// `deleted: false` significa que el servicio ya tenía turnos y el backend lo
+// desactivó en vez de borrarlo — hay que avisarlo, no decir "borrado".
+export function deleteAdminService(
+  code: string,
+  id: string
+): Promise<{ deleted: boolean; appointmentCount: number; service: AdminService }> {
+  return adminRequest(code, `/admin/services/${id}`, { method: "DELETE" });
+}
+
+export function assignServiceToArtist(code: string, artistId: string, serviceId: string): Promise<unknown> {
+  return adminRequest(code, `/admin/artists/${artistId}/services/${serviceId}`, { method: "POST" });
+}
+
+export function unassignServiceFromArtist(code: string, artistId: string, serviceId: string): Promise<unknown> {
+  return adminRequest(code, `/admin/artists/${artistId}/services/${serviceId}`, { method: "DELETE" });
+}

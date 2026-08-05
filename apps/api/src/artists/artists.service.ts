@@ -19,8 +19,11 @@ export class ArtistsService {
       throw new NotFoundException('Tatuador no encontrado');
     }
 
+    // Solo servicios activos: un servicio desactivado desde el panel deja de
+    // ofrecerse, aunque la asignación tatuador↔servicio siga existiendo (se
+    // conserva para poder reactivarlo sin recargar las asignaciones).
     const artistServices = await this.prisma.artistService.findMany({
-      where: { artistId },
+      where: { artistId, service: { active: true } },
       include: { service: true },
     });
 

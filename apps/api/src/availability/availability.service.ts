@@ -83,18 +83,26 @@ export class AvailabilityService {
   async getAvailableSlots(dto: GetAvailabilityDto): Promise<string[]> {
     const { artistId, serviceId, date } = dto;
 
+    // Este es el punto donde se hace cumplir `active`, no solo el listado del
+    // wizard: AppointmentsService.create() pasa por acá, así que un servicio
+    // (o un tatuador) desactivado deja de ser reservable incluso para alguien
+    // con el wizard viejo abierto o pegándole a la API directo con los ids.
     const service = await this.prisma.service.findUnique({
       where: { id: serviceId },
     });
-    if (!service) {
+    if (!service || !service.active) {
       throw new NotFoundException('Servicio no encontrado');
     }
 
     const artistService = await this.prisma.artistService.findUnique({
       where: { artistId_serviceId: { artistId, serviceId } },
+      include: { artist: { select: { active: true } } },
     });
     if (!artistService) {
       throw new BadRequestException('Este tatuador no ofrece este servicio');
+    }
+    if (!artistService.artist.active) {
+      throw new NotFoundException('Tatuador no encontrado');
     }
 
     const dayOfWeek = dayOfWeekOf(date);

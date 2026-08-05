@@ -7,9 +7,10 @@ import { AccessDenied } from "./AccessDenied";
 import { AppointmentsTab } from "./AppointmentsTab";
 import { BlockDayTab } from "./BlockDayTab";
 import { ArtistsTab } from "./ArtistsTab";
+import { ServicesTab } from "./ServicesTab";
 
 type AuthState = "checking" | "denied" | "ok";
-type PanelTab = "appointments" | "block" | "artists";
+type PanelTab = "appointments" | "block" | "artists" | "services";
 
 export function AdminPanel({ code }: { code: string }) {
   const [authState, setAuthState] = useState<AuthState>("checking");
@@ -81,11 +82,21 @@ export function AdminPanel({ code }: { code: string }) {
           >
             Tatuadores
           </button>
+          <button
+            type="button"
+            onClick={() => setTab("services")}
+            className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors ${
+              tab === "services" ? "border-b-2 border-gore text-gore" : "text-ash hover:text-ashLight"
+            }`}
+          >
+            Servicios
+          </button>
         </div>
 
         {tab === "appointments" && <AppointmentsTab code={code} />}
         {tab === "block" && <BlockDayTab code={code} />}
         {tab === "artists" && <ArtistsTab code={code} />}
+        {tab === "services" && <ServicesTab code={code} />}
       </div>
     </div>
   );

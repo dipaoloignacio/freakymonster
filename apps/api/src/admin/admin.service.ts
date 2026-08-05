@@ -8,6 +8,8 @@ import { UpdateAdminAppointmentDto } from './dto/update-admin-appointment.dto';
 import { CreateAvailabilityBlockDto } from './dto/create-availability-block.dto';
 import { CreateArtistDto } from './dto/create-artist.dto';
 import { UpdateArtistDto } from './dto/update-artist.dto';
+import { CreateServiceDto } from './dto/create-service.dto';
+import { UpdateServiceDto } from './dto/update-service.dto';
 import { ARTIST_IMAGES_URL_PREFIX } from '../uploads.constants';
 
 const APPOINTMENT_INCLUDE = { artist: true, service: true } as const;
@@ -194,5 +196,150 @@ export class AdminService {
     }
 
     return this.prisma.artist.update({ where: { id }, data: { active: false } });
+  }
+
+  // Igual que listArtists(): el panel ve activos e inactivos (el wizard solo
+  // ve activos). Devuelve los tatuadores que ofrecen cada servicio aplanados
+  // a [{ id, name }] — el panel los muestra como referencia de un vistazo,
+  // pero la asignación se edita desde el formulario del tatuador.
+  async listServices() {
+    const services = await this.prisma.service.findMany({
+      orderBy: { name: 'asc' },
+      include: { artists: { include: { artist: { select: { id: true, name: true } } } } },
+    });
+
+    return services.map(({ artists, ...service }) => ({
+      ...service,
+      artists: artists.map((link) => link.artist),
+    }));
+  }
+
+  /**
+   * Un servicio con seña pero sin monto dejaría el checkout de Mercado Pago
+   * sin importe — se valida contra el estado RESULTANTE (no contra el DTO
+   * suelto) para que valga igual en create y en update: un PATCH que solo
+   * manda requiresDeposit=true tiene que fallar si el servicio no tenía
+   * monto, y uno que solo manda depositAmount tiene que poder completar un
+   * servicio que ya lo requería.
+   */
+  private assertDepositIsCoherent(requiresDeposit: boolean, depositAmount: number | null) {
+    if (requiresDeposit && (depositAmount === null || depositAmount === undefined)) {
+      throw new BadRequestException('Un servicio que requiere seña necesita un monto de seña');
+    }
+  }
+
+  async createService(dto: CreateServiceDto) {
+    const requiresDeposit = dto.requiresDeposit ?? false;
+    this.assertDepositIsCoherent(requiresDeposit, dto.depositAmount ?? null);
+
+    return this.prisma.service.create({
+      data: {
+        name: dto.name,
+        durationMinutes: dto.durationMinutes,
+        requiresDeposit,
+        // Sin seña no guardamos monto: si no, quedaría un valor viejo colgado
+        // que reaparecería solo al reactivar requiresDeposit más adelante.
+        depositAmount: requiresDeposit ? dto.depositAmount : null,
+      },
+    });
+  }
+
+  async updateService(id: string, dto: UpdateServiceDto) {
+    const service = await this.prisma.service.findUnique({ where: { id } });
+    if (!service) {
+      throw new NotFoundException('Servicio no encontrado');
+    }
+
+    const requiresDeposit = dto.requiresDeposit ?? service.requiresDeposit;
+    const depositAmount =
+      dto.depositAmount !== undefined
+        ? dto.depositAmount
+        : service.depositAmount !== null
+          ? Number(service.depositAmount)
+          : null;
+    this.assertDepositIsCoherent(requiresDeposit, depositAmount);
+
+    return this.prisma.service.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.durationMinutes !== undefined ? { durationMinutes: dto.durationMinutes } : {}),
+        ...(dto.active !== undefined ? { active: dto.active } : {}),
+        requiresDeposit,
+        depositAmount: requiresDeposit ? depositAmount : null,
+      },
+    });
+  }
+
+  /**
+   * A diferencia de deactivateArtist() (que nunca borra), un servicio que
+   * todavía no se usó en ningún turno no tiene historial que preservar, así
+   * que se borra de verdad — es lo que uno espera después de cargar un
+   * servicio mal y querer deshacerlo. Con turnos asociados sí hay que
+   * conservarlo (FK desde Appointment.serviceId, y el turno viejo tiene que
+   * poder seguir mostrando qué era), así que ahí degrada a desactivación.
+   *
+   * `deleted` le dice al panel cuál de las dos cosas pasó, para poder avisar
+   * "se desactivó porque ya tiene turnos" en vez de mentir con "borrado".
+   */
+  async deleteService(id: string) {
+    const service = await this.prisma.service.findUnique({ where: { id } });
+    if (!service) {
+      throw new NotFoundException('Servicio no encontrado');
+    }
+
+    const appointmentCount = await this.prisma.appointment.count({ where: { serviceId: id } });
+    if (appointmentCount > 0) {
+      const deactivated = await this.prisma.service.update({ where: { id }, data: { active: false } });
+      return { deleted: false, appointmentCount, service: deactivated };
+    }
+
+    // Las filas de ArtistService apuntan al servicio por FK, así que hay que
+    // sacarlas primero o el DELETE falla.
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      await tx.artistService.deleteMany({ where: { serviceId: id } });
+      return tx.service.delete({ where: { id } });
+    });
+
+    return { deleted: true, appointmentCount: 0, service: deleted };
+  }
+
+  private async assertArtistAndServiceExist(artistId: string, serviceId: string) {
+    const [artist, service] = await Promise.all([
+      this.prisma.artist.findUnique({ where: { id: artistId } }),
+      this.prisma.service.findUnique({ where: { id: serviceId } }),
+    ]);
+    if (!artist) {
+      throw new NotFoundException('Tatuador no encontrado');
+    }
+    if (!service) {
+      throw new NotFoundException('Servicio no encontrado');
+    }
+  }
+
+  // upsert en vez de create: reasignar algo que ya estaba asignado no es un
+  // error desde el panel (el checkbox ya estaba tildado), y así no hay que
+  // atrapar el P2002 de la PK compuesta.
+  async assignServiceToArtist(artistId: string, serviceId: string) {
+    await this.assertArtistAndServiceExist(artistId, serviceId);
+
+    return this.prisma.artistService.upsert({
+      where: { artistId_serviceId: { artistId, serviceId } },
+      create: { artistId, serviceId },
+      update: {},
+    });
+  }
+
+  // Los turnos ya agendados guardan su propio artistId/serviceId (no apuntan
+  // a ArtistService), así que desasignar no toca el historial: solo deja de
+  // ofrecer esa combinación en el wizard de acá en adelante.
+  //
+  // deleteMany en vez de delete para que desasignar algo que no estaba
+  // asignado sea idempotente en vez de tirar P2025.
+  async unassignServiceFromArtist(artistId: string, serviceId: string) {
+    await this.assertArtistAndServiceExist(artistId, serviceId);
+    await this.prisma.artistService.deleteMany({ where: { artistId, serviceId } });
+
+    return { artistId, serviceId, assigned: false };
   }
 }

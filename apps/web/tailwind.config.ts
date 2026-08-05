@@ -11,12 +11,18 @@ const config: Config = {
         ink: "#0d0b0a", // fondo principal
         panel: "#141210", // paneles de tarjetas
         panel2: "#0f0d0b", // fondo de secciones alternas
-        bone: "oklch(0.93 0.012 85)", // texto principal
-        ash: "oklch(0.68 0.01 85)", // texto secundario
-        ashLight: "oklch(0.75 0.01 85)", // texto de párrafos
-        gore: "oklch(0.65 0.24 350)", // acento rojo/carmesí (CTAs)
-        toxic: "oklch(0.72 0.19 142)", // acento verde tóxico (detalles, eyebrows)
-        plum: "oklch(0.34 0.07 300)", // bordes
+        // El "/ <alpha-value>" no es decorativo: sin ese placeholder Tailwind
+        // no sabe dónde inyectar la opacidad en un oklch() y descarta la clase
+        // entera en silencio. Es decir, `bg-gore/10`, `border-plum/40` y
+        // compañía no generaban NINGUNA regla CSS y los elementos quedaban con
+        // el color por defecto del navegador. (Con los hex de arriba no hace
+        // falta: esos Tailwind los sabe descomponer solo.)
+        bone: "oklch(0.93 0.012 85 / <alpha-value>)", // texto principal
+        ash: "oklch(0.68 0.01 85 / <alpha-value>)", // texto secundario
+        ashLight: "oklch(0.75 0.01 85 / <alpha-value>)", // texto de párrafos
+        gore: "oklch(0.65 0.24 350 / <alpha-value>)", // acento rojo/carmesí (CTAs)
+        toxic: "oklch(0.72 0.19 142 / <alpha-value>)", // acento verde tóxico (detalles, eyebrows)
+        plum: "oklch(0.34 0.07 300 / <alpha-value>)", // bordes
       },
       fontFamily: {
         display: ["var(--font-cinzel)", "serif"],

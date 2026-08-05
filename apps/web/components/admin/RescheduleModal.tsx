@@ -76,6 +76,7 @@ export function RescheduleModal({
             onBack={onClose}
             title="Elegí una nueva fecha"
             backLabel="Cancelar"
+            availabilityFor={{ artistId: appointment.artistId, serviceId: appointment.serviceId }}
           />
         )}
 

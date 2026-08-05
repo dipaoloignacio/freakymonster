@@ -8,15 +8,68 @@ import {
   deactivateAdminArtist,
   fetchAdminArtists,
   fetchAdminServices,
+  fetchArtistAvailability,
+  setArtistAvailability,
   unassignServiceFromArtist,
   updateAdminArtist,
   type AdminArtist,
   type AdminService,
+  type WeeklyAvailabilityWindow,
 } from "@/lib/adminApi";
 import { ErrorBox, Spinner } from "@/components/reservation/shared";
 import { formatDuration } from "./ServicesTab";
 
 type FormTarget = "new" | AdminArtist;
+
+type DaySchedule = { enabled: boolean; startTime: string; endTime: string };
+
+// Orden de visualización lunes→domingo (como el calendario del wizard),
+// pero el valor guardado sigue la convención del backend: 0 = domingo.
+const WEEKDAYS: { value: number; label: string }[] = [
+  { value: 1, label: "Lunes" },
+  { value: 2, label: "Martes" },
+  { value: 3, label: "Miércoles" },
+  { value: 4, label: "Jueves" },
+  { value: 5, label: "Viernes" },
+  { value: 6, label: "Sábado" },
+  { value: 0, label: "Domingo" },
+];
+
+// Espeja DEFAULT_WEEKLY_AVAILABILITY del backend, para que el formulario de
+// alta muestre exactamente lo que se va a guardar en vez de una semana vacía
+// que no se corresponde con la realidad.
+function defaultSchedule(): Record<number, DaySchedule> {
+  const schedule: Record<number, DaySchedule> = {};
+  for (const { value } of WEEKDAYS) {
+    schedule[value] = {
+      enabled: value >= 2 && value <= 6,
+      startTime: "12:00",
+      endTime: "20:00",
+    };
+  }
+  return schedule;
+}
+
+function scheduleFromWindows(windows: WeeklyAvailabilityWindow[]): Record<number, DaySchedule> {
+  const schedule: Record<number, DaySchedule> = {};
+  for (const { value } of WEEKDAYS) {
+    schedule[value] = { enabled: false, startTime: "12:00", endTime: "20:00" };
+  }
+  // Si un día tuviera más de una franja (el backend lo permite), la UI
+  // muestra la primera — al guardar quedaría solo esa. Hoy no se da porque
+  // nada crea franjas partidas, pero conviene saberlo antes de agregarlas.
+  for (const window of windows) {
+    const current = schedule[window.dayOfWeek];
+    if (current && !current.enabled) {
+      schedule[window.dayOfWeek] = {
+        enabled: true,
+        startTime: window.startTime,
+        endTime: window.endTime,
+      };
+    }
+  }
+  return schedule;
+}
 
 export function ArtistsTab({ code }: { code: string }) {
   const [artists, setArtists] = useState<AdminArtist[] | null>(null);
@@ -237,6 +290,38 @@ function ArtistForm({
     };
   }, [code, artistId]);
 
+  // Horario laboral semanal. En alta arranca con el default del backend; en
+  // edición se carga lo que ya tiene. Ver DEFAULT_WEEKLY_AVAILABILITY.
+  const [schedule, setSchedule] = useState<Record<number, DaySchedule>>(defaultSchedule);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!artistId) return;
+    let active = true;
+    fetchArtistAvailability(code, artistId)
+      .then((windows) => {
+        if (active) setSchedule(scheduleFromWindows(windows));
+      })
+      .catch(() => {
+        if (active) setScheduleError("No pudimos cargar los horarios de este tatuador.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [code, artistId]);
+
+  function updateDay(dayOfWeek: number, patch: Partial<DaySchedule>) {
+    setSchedule((current) => ({ ...current, [dayOfWeek]: { ...current[dayOfWeek], ...patch } }));
+  }
+
+  function scheduleToWindows(): WeeklyAvailabilityWindow[] {
+    return WEEKDAYS.filter(({ value }) => schedule[value].enabled).map(({ value }) => ({
+      dayOfWeek: value,
+      startTime: schedule[value].startTime,
+      endTime: schedule[value].endTime,
+    }));
+  }
+
   function toggleService(serviceId: string) {
     setSelectedServiceIds((current) => {
       const next = new Set(current);
@@ -295,6 +380,15 @@ function ArtistForm({
       setError("El nombre es obligatorio.");
       return;
     }
+    const invalidDay = WEEKDAYS.find(
+      ({ value }) => schedule[value].enabled && schedule[value].endTime <= schedule[value].startTime
+    );
+    if (invalidDay) {
+      // Comparar "HH:mm" como string alcanza: con cero a la izquierda el
+      // orden lexicográfico coincide con el cronológico.
+      setError(`El horario del ${invalidDay.label.toLowerCase()} termina antes de empezar.`);
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -319,7 +413,7 @@ function ArtistForm({
         });
         savedId = target.id;
       }
-      await syncArtistServices(savedId);
+      await Promise.all([syncArtistServices(savedId), setArtistAvailability(code, savedId, scheduleToWindows())]);
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No pudimos guardar al tatuador. Probá de nuevo.");
@@ -403,6 +497,51 @@ function ArtistForm({
                 className="min-w-[140px] flex-1 bg-transparent px-1 py-1 text-sm normal-case tracking-normal text-bone outline-none"
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ash">
+            Horario semanal
+            {scheduleError ? (
+              <p className="border-2 border-gore bg-ink px-3 py-2 text-sm normal-case tracking-normal text-bone">
+                {scheduleError}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-1.5 border-2 border-plum bg-ink p-3">
+                {WEEKDAYS.map(({ value, label }) => (
+                  <div key={value} className="flex items-center gap-2">
+                    <label className="flex w-32 shrink-0 items-center gap-2 text-sm normal-case tracking-normal text-bone">
+                      <input
+                        type="checkbox"
+                        checked={schedule[value].enabled}
+                        onChange={(e) => updateDay(value, { enabled: e.target.checked })}
+                        className="h-4 w-4 accent-gore"
+                      />
+                      {label}
+                    </label>
+                    <input
+                      type="time"
+                      value={schedule[value].startTime}
+                      disabled={!schedule[value].enabled}
+                      onChange={(e) => updateDay(value, { startTime: e.target.value })}
+                      aria-label={`${label}: hora de inicio`}
+                      className="border-2 border-plum bg-ink px-2 py-1 text-sm text-bone disabled:opacity-30"
+                    />
+                    <span className="text-sm text-ashLight">a</span>
+                    <input
+                      type="time"
+                      value={schedule[value].endTime}
+                      disabled={!schedule[value].enabled}
+                      onChange={(e) => updateDay(value, { endTime: e.target.value })}
+                      aria-label={`${label}: hora de fin`}
+                      className="border-2 border-plum bg-ink px-2 py-1 text-sm text-bone disabled:opacity-30"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <span className="normal-case tracking-normal text-ashLight">
+              Sin ningún día tildado el tatuador no tiene turnos disponibles.
+            </span>
           </div>
 
           {/*

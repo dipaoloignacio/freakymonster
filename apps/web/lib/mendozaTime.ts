@@ -59,6 +59,25 @@ export function addDaysToDateString(dateStr: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * ISO UTC → "YYYY-MM-DD" del día calendario en Mendoza. Para agrupar turnos
+ * por día hay que usar esto y no el día local del navegador: un turno de las
+ * 22:00 en Mendoza cae al día siguiente en UTC, y agruparlo por UTC lo
+ * mostraría bajo la fecha equivocada.
+ */
+export function isoToMendozaDateString(iso: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: MENDOZA_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(iso));
+  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
 /** ISO UTC → "mar 11 ago, 14:00" en hora Mendoza — para filas de tabla. */
 export function formatDateTimeShort(iso: string): string {
   const date = new Date(iso);

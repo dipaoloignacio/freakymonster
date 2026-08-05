@@ -3,10 +3,14 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
+  assignServiceToArtist,
   createAdminService,
   deleteAdminService,
+  fetchAdminArtists,
   fetchAdminServices,
+  unassignServiceFromArtist,
   updateAdminService,
+  type AdminArtist,
   type AdminService,
 } from "@/lib/adminApi";
 import { ErrorBox, Spinner } from "@/components/reservation/shared";
@@ -255,6 +259,56 @@ function ServiceForm({
 
   const durationMinutes = hours * 60 + minutes;
 
+  // Qué tatuadores ofrecen este servicio. Es el mismo vínculo ArtistService
+  // que se edita desde el formulario del tatuador (ArtistsTab), visto desde
+  // el otro lado: los dos caminos pegan a los mismos endpoints, así que
+  // quedan sincronizados solos.
+  const [artists, setArtists] = useState<AdminArtist[] | null>(null);
+  const [selectedArtistIds, setSelectedArtistIds] = useState<Set<string>>(
+    () => new Set(isNew ? [] : target.artists.map((a) => a.id))
+  );
+  // Snapshot de cómo estaba al abrir, para diferenciar altas de bajas al
+  // guardar. `useState` sin setter = valor inicial congelado.
+  const [initialArtistIds] = useState<Set<string>>(
+    () => new Set(isNew ? [] : target.artists.map((a) => a.id))
+  );
+
+  useEffect(() => {
+    // `alive`, no `active`: ese nombre ya lo usa el toggle de activo del
+    // servicio y lo estaría tapando dentro de este efecto.
+    let alive = true;
+    fetchAdminArtists(code)
+      .then((data) => {
+        if (alive) setArtists(data);
+      })
+      .catch(() => {
+        // El resto del formulario sigue siendo usable; se avisa en el lugar
+        // donde iría la lista.
+        if (alive) setArtists([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [code]);
+
+  function toggleArtist(artistId: string) {
+    setSelectedArtistIds((current) => {
+      const next = new Set(current);
+      if (next.has(artistId)) next.delete(artistId);
+      else next.add(artistId);
+      return next;
+    });
+  }
+
+  async function syncServiceArtists(id: string) {
+    const toAssign = [...selectedArtistIds].filter((artistId) => !initialArtistIds.has(artistId));
+    const toUnassign = [...initialArtistIds].filter((artistId) => !selectedArtistIds.has(artistId));
+    await Promise.all([
+      ...toAssign.map((artistId) => assignServiceToArtist(code, artistId, id)),
+      ...toUnassign.map((artistId) => unassignServiceFromArtist(code, artistId, id)),
+    ]);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) {
@@ -277,13 +331,17 @@ function ServiceForm({
       // depositAmount solo se manda si aplica — el backend lo pone en null
       // cuando requiresDeposit es false, no hace falta mandarlo vacío.
       const depositFields = requiresDeposit ? { depositAmount: parsedDeposit } : {};
+      // El alta va primero: asignar tatuadores necesita el id del servicio,
+      // que recién existe después de crearlo.
+      let savedId: string;
       if (isNew) {
-        await createAdminService(code, {
+        const created = await createAdminService(code, {
           name: name.trim(),
           durationMinutes,
           requiresDeposit,
           ...depositFields,
         });
+        savedId = created.id;
       } else {
         await updateAdminService(code, target.id, {
           name: name.trim(),
@@ -292,7 +350,9 @@ function ServiceForm({
           active,
           ...depositFields,
         });
+        savedId = target.id;
       }
+      await syncServiceArtists(savedId);
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No pudimos guardar el servicio. Probá de nuevo.");
@@ -405,6 +465,44 @@ function ServiceForm({
               />
             </label>
           )}
+
+          <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ash">
+            Tatuadores que lo ofrecen
+            {artists === null ? (
+              <p className="border-2 border-plum bg-ink px-3 py-2 text-sm normal-case tracking-normal text-ashLight">
+                Cargando tatuadores…
+              </p>
+            ) : artists.length === 0 ? (
+              <p className="border-2 border-plum bg-ink px-3 py-2 text-sm normal-case tracking-normal text-ashLight">
+                No hay tatuadores cargados todavía.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 border-2 border-plum bg-ink p-3">
+                {artists.map((artist) => (
+                  <label
+                    key={artist.id}
+                    className="flex items-center gap-2 text-sm normal-case tracking-normal text-bone"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedArtistIds.has(artist.id)}
+                      onChange={() => toggleArtist(artist.id)}
+                      className="h-4 w-4 accent-gore"
+                    />
+                    <span>{artist.name}</span>
+                    {!artist.active && (
+                      <span className="border border-ash px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ash">
+                        Inactivo
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
+            <span className="normal-case tracking-normal text-ashLight">
+              Lo mismo se puede editar desde el formulario del tatuador.
+            </span>
+          </div>
 
           {!isNew && (
             <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ash">

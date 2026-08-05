@@ -291,8 +291,13 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
               {step === "service" && artist && (
                 <ServiceStep artist={artist} onSelect={selectService} onBack={goBack} />
               )}
-              {step === "date" && (
-                <DateStep onSelect={selectDate} onBack={goBack} stepInfo={{ step: 3, total: 5 }} />
+              {step === "date" && artist && service && (
+                <DateStep
+                  onSelect={selectDate}
+                  onBack={goBack}
+                  stepInfo={{ step: 3, total: 5 }}
+                  availabilityFor={{ artistId: artist.id, serviceId: service.id }}
+                />
               )}
               {step === "time" && artist && service && date && (
                 <TimeStep

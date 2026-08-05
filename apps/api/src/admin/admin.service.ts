@@ -10,9 +10,25 @@ import { CreateArtistDto } from './dto/create-artist.dto';
 import { UpdateArtistDto } from './dto/update-artist.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { SetWeeklyAvailabilityDto } from './dto/set-weekly-availability.dto';
 import { ARTIST_IMAGES_URL_PREFIX } from '../uploads.constants';
 
 const APPOINTMENT_INCLUDE = { artist: true, service: true } as const;
+
+/**
+ * Martes a sábado, 12:00–20:00 (horario general del estudio, el mismo que
+ * carga el seed). Se aplica al crear un tatuador porque sin ninguna franja
+ * getAvailableSlots() devuelve vacío TODOS los días: el tatuador queda
+ * inservible en el wizard aunque figure activo y con servicios asignados, y
+ * nada en la UI explica por qué. Es solo un punto de partida editable.
+ */
+const DEFAULT_WEEKLY_AVAILABILITY = [2, 3, 4, 5, 6].map((dayOfWeek) => ({
+  dayOfWeek,
+  startTime: '12:00',
+  endTime: '20:00',
+}));
+
+const WEEKLY_AVAILABILITY_ORDER = [{ dayOfWeek: 'asc' }, { startTime: 'asc' }] as const;
 
 @Injectable()
 export class AdminService {
@@ -130,19 +146,83 @@ export class AdminService {
     });
   }
 
+  /**
+   * Sin artistId bloquea el día para todos los tatuadores activos.
+   *
+   * Es idempotente por (tatuador, día): si ya existe un bloqueo se saltea en
+   * vez de crear otro. No hay índice único que lo impida a nivel base, y sin
+   * este chequeo cada click repetido dejaba una fila duplicada — así se
+   * juntaron cientos de bloqueos basura en desarrollo.
+   */
   async createAvailabilityBlock(dto: CreateAvailabilityBlockDto) {
-    const artist = await this.prisma.artist.findUnique({ where: { id: dto.artistId } });
-    if (!artist) {
-      throw new NotFoundException('Tatuador no encontrado');
+    let artistIds: string[];
+    if (dto.artistId) {
+      const artist = await this.prisma.artist.findUnique({ where: { id: dto.artistId } });
+      if (!artist) {
+        throw new NotFoundException('Tatuador no encontrado');
+      }
+      artistIds = [artist.id];
+    } else {
+      // Los inactivos no se bloquean: ya no reciben turnos, sería ruido.
+      const activeArtists = await this.prisma.artist.findMany({
+        where: { active: true },
+        select: { id: true },
+      });
+      if (activeArtists.length === 0) {
+        throw new BadRequestException('No hay tatuadores activos para bloquear');
+      }
+      artistIds = activeArtists.map((artist) => artist.id);
     }
 
-    return this.prisma.availabilityBlock.create({
-      data: {
-        artistId: dto.artistId,
-        date: new Date(`${dto.date}T00:00:00.000Z`),
-        reason: dto.reason,
-      },
+    // AvailabilityBlock.date es @db.Date → medianoche UTC "naive", sin
+    // conversión de zona horaria (ver naiveCalendarDayRangeUtc).
+    const { start, end } = naiveCalendarDayRangeUtc(dto.date);
+    const existing = await this.prisma.availabilityBlock.findMany({
+      where: { artistId: { in: artistIds }, date: { gte: start, lt: end } },
+      select: { artistId: true },
     });
+    const alreadyBlocked = new Set(existing.map((block) => block.artistId));
+    const toCreate = artistIds.filter((artistId) => !alreadyBlocked.has(artistId));
+
+    if (toCreate.length > 0) {
+      await this.prisma.availabilityBlock.createMany({
+        data: toCreate.map((artistId) => ({ artistId, date: start, reason: dto.reason })),
+      });
+    }
+
+    return {
+      created: toCreate.length,
+      alreadyBlocked: alreadyBlocked.size,
+      blocks: await this.prisma.availabilityBlock.findMany({
+        where: { artistId: { in: artistIds }, date: { gte: start, lt: end } },
+        include: { artist: { select: { id: true, name: true } } },
+      }),
+    };
+  }
+
+  /**
+   * Bloqueos de hoy en adelante. Los pasados no se listan: no se pueden
+   * "deshacer" en ningún sentido útil y taparían los que sí importan.
+   */
+  async listAvailabilityBlocks() {
+    const todayStart = naiveCalendarDayRangeUtc(new Date().toISOString().slice(0, 10)).start;
+
+    return this.prisma.availabilityBlock.findMany({
+      where: { date: { gte: todayStart } },
+      include: { artist: { select: { id: true, name: true } } },
+      orderBy: [{ date: 'asc' }, { artistId: 'asc' }],
+    });
+  }
+
+  async deleteAvailabilityBlock(id: string) {
+    const block = await this.prisma.availabilityBlock.findUnique({ where: { id } });
+    if (!block) {
+      throw new NotFoundException('Bloqueo no encontrado');
+    }
+
+    // Borrar el bloqueo solo vuelve a ofrecer esos horarios; no toca ningún
+    // turno (los que ya existían nunca se borraron al bloquear).
+    return this.prisma.availabilityBlock.delete({ where: { id } });
   }
 
   // A diferencia de ArtistsService.findActiveArtists() (público, solo
@@ -159,6 +239,8 @@ export class AdminService {
         bio: dto.bio,
         specialties: dto.specialties ?? [],
         imageUrl: file ? `${ARTIST_IMAGES_URL_PREFIX}/${file.filename}` : null,
+        // Ver DEFAULT_WEEKLY_AVAILABILITY: sin franjas el tatuador nace roto.
+        availability: { create: DEFAULT_WEEKLY_AVAILABILITY },
       },
     });
   }
@@ -196,6 +278,55 @@ export class AdminService {
     }
 
     return this.prisma.artist.update({ where: { id }, data: { active: false } });
+  }
+
+  async getWeeklyAvailability(artistId: string) {
+    const artist = await this.prisma.artist.findUnique({ where: { id: artistId } });
+    if (!artist) {
+      throw new NotFoundException('Tatuador no encontrado');
+    }
+
+    return this.prisma.weeklyAvailability.findMany({
+      where: { artistId },
+      orderBy: [...WEEKLY_AVAILABILITY_ORDER],
+    });
+  }
+
+  /**
+   * Reemplaza la semana completa (ver SetWeeklyAvailabilityDto). Los turnos
+   * ya agendados NO se tocan: guardan su propio startTime/endTime, así que
+   * achicar el horario no los mueve ni los borra — solo deja de ofrecer esos
+   * huecos de acá en adelante. Un turno que quede fuera del nuevo horario
+   * sigue existiendo y se ve normal en el panel.
+   */
+  async setWeeklyAvailability(artistId: string, dto: SetWeeklyAvailabilityDto) {
+    const artist = await this.prisma.artist.findUnique({ where: { id: artistId } });
+    if (!artist) {
+      throw new NotFoundException('Tatuador no encontrado');
+    }
+
+    for (const window of dto.windows) {
+      if (parseTimeToMinutes(window.endTime) <= parseTimeToMinutes(window.startTime)) {
+        throw new BadRequestException(
+          `La franja del día ${window.dayOfWeek} termina antes de empezar (${window.startTime}–${window.endTime})`,
+        );
+      }
+    }
+
+    // deleteMany + createMany en una transacción: si algo falla, el tatuador
+    // no queda a mitad de camino sin horarios.
+    return this.prisma.$transaction(async (tx) => {
+      await tx.weeklyAvailability.deleteMany({ where: { artistId } });
+      if (dto.windows.length > 0) {
+        await tx.weeklyAvailability.createMany({
+          data: dto.windows.map((window) => ({ artistId, ...window })),
+        });
+      }
+      return tx.weeklyAvailability.findMany({
+        where: { artistId },
+        orderBy: [...WEEKLY_AVAILABILITY_ORDER],
+      });
+    });
   }
 
   // Igual que listArtists(): el panel ve activos e inactivos (el wizard solo

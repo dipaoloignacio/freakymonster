@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
 import { AdminGuard } from './guards/admin.guard';
@@ -9,6 +9,7 @@ import { CreateArtistDto } from './dto/create-artist.dto';
 import { UpdateArtistDto } from './dto/update-artist.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { SetWeeklyAvailabilityDto } from './dto/set-weekly-availability.dto';
 import { artistImageMulterOptions } from './multer-artist-image.config';
 
 @Controller('admin')
@@ -26,9 +27,20 @@ export class AdminController {
     return this.adminService.updateAppointment(id, dto);
   }
 
+  @Get('availability-blocks')
+  findAvailabilityBlocks() {
+    return this.adminService.listAvailabilityBlocks();
+  }
+
+  // Sin artistId en el body, bloquea para todos los tatuadores activos.
   @Post('availability-blocks')
   createAvailabilityBlock(@Body() dto: CreateAvailabilityBlockDto) {
     return this.adminService.createAvailabilityBlock(dto);
+  }
+
+  @Delete('availability-blocks/:id')
+  deleteAvailabilityBlock(@Param('id') id: string) {
+    return this.adminService.deleteAvailabilityBlock(id);
   }
 
   @Get('artists')
@@ -51,6 +63,17 @@ export class AdminController {
   @Delete('artists/:id')
   deactivateArtist(@Param('id') id: string) {
     return this.adminService.deactivateArtist(id);
+  }
+
+  @Get('artists/:id/availability')
+  getWeeklyAvailability(@Param('id') id: string) {
+    return this.adminService.getWeeklyAvailability(id);
+  }
+
+  // PUT y no PATCH: reemplaza la semana entera. Ver SetWeeklyAvailabilityDto.
+  @Put('artists/:id/availability')
+  setWeeklyAvailability(@Param('id') id: string, @Body() dto: SetWeeklyAvailabilityDto) {
+    return this.adminService.setWeeklyAvailability(id, dto);
   }
 
   @Get('services')

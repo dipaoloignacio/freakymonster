@@ -87,17 +87,39 @@ export function rescheduleAdminAppointment(
   });
 }
 
+export interface AdminAvailabilityBlock {
+  id: string;
+  artistId: string;
+  date: string;
+  reason: string | null;
+  artist: { id: string; name: string };
+}
+
+/**
+ * `artistId` en null bloquea el día para todos los tatuadores activos.
+ * La respuesta dice cuántos se crearon y cuántos ya estaban bloqueados (el
+ * endpoint es idempotente por tatuador+día).
+ */
 export function createAdminAvailabilityBlock(
   code: string,
-  artistId: string,
+  artistId: string | null,
   date: string,
   reason?: string
-): Promise<{ id: string }> {
+): Promise<{ created: number; alreadyBlocked: number; blocks: AdminAvailabilityBlock[] }> {
   return adminRequest(code, "/admin/availability-blocks", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ artistId, date, reason: reason || undefined }),
+    body: JSON.stringify({ artistId: artistId ?? undefined, date, reason: reason || undefined }),
   });
+}
+
+/** Bloqueos de hoy en adelante (los pasados no se listan). */
+export function fetchAdminAvailabilityBlocks(code: string): Promise<AdminAvailabilityBlock[]> {
+  return adminRequest(code, "/admin/availability-blocks");
+}
+
+export function deleteAdminAvailabilityBlock(code: string, id: string): Promise<AdminAvailabilityBlock> {
+  return adminRequest(code, `/admin/availability-blocks/${id}`, { method: "DELETE" });
 }
 
 export interface AdminArtist {
@@ -149,6 +171,34 @@ export function updateAdminArtist(code: string, id: string, input: ArtistFormInp
 
 export function deactivateAdminArtist(code: string, id: string): Promise<AdminArtist> {
   return adminRequest(code, `/admin/artists/${id}`, { method: "DELETE" });
+}
+
+// Franja de horario laboral semanal. dayOfWeek: 0 = domingo … 6 = sábado
+// (misma convención que dayOfWeekOf() en el backend). Horas en hora Mendoza.
+export interface WeeklyAvailabilityWindow {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
+
+export function fetchArtistAvailability(
+  code: string,
+  artistId: string
+): Promise<(WeeklyAvailabilityWindow & { id: string })[]> {
+  return adminRequest(code, `/admin/artists/${artistId}/availability`);
+}
+
+// PUT: reemplaza la semana completa, no es un merge.
+export function setArtistAvailability(
+  code: string,
+  artistId: string,
+  windows: WeeklyAvailabilityWindow[]
+): Promise<(WeeklyAvailabilityWindow & { id: string })[]> {
+  return adminRequest(code, `/admin/artists/${artistId}/availability`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ windows }),
+  });
 }
 
 export interface AdminService {

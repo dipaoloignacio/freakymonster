@@ -74,6 +74,20 @@ export function naiveCalendarDayRangeUtc(dateStr: string): { start: Date; end: D
 }
 
 /**
+ * Todas las fechas calendario ("YYYY-MM-DD") de un mes "YYYY-MM". Operación
+ * de calendario pura: no depende de zona horaria (agosto tiene 31 días en
+ * cualquier lado), pero se resuelve con Luxon para no reimplementar años
+ * bisiestos a mano.
+ */
+export function calendarDaysOfMonth(month: string): string[] {
+  const first = DateTime.fromISO(`${month}-01`, { zone: STUDIO_TIMEZONE });
+  if (!first.isValid) {
+    throw new Error(`Mes inválido: ${month} (${first.invalidReason})`);
+  }
+  return Array.from({ length: first.daysInMonth! }, (_, i) => first.plus({ days: i }).toFormat('yyyy-MM-dd'));
+}
+
+/**
  * Formatea un instante UTC como fecha y hora legible en hora Mendoza, para
  * mostrar en emails/UI (nunca mostrar el UTC crudo a un humano).
  * Ej: "martes 18 de agosto de 2026, 12:00".

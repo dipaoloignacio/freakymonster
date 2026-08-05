@@ -109,6 +109,20 @@ export function fetchAvailability(
   return request<string[]>(`/availability?${params.toString()}`);
 }
 
+/**
+ * Fechas ("YYYY-MM-DD") del mes que tienen al menos un turno libre. Una sola
+ * request por mes en vez de una por día — ver el endpoint /availability/month.
+ * @param month "YYYY-MM"
+ */
+export function fetchMonthAvailability(
+  artistId: string,
+  serviceId: string,
+  month: string
+): Promise<string[]> {
+  const params = new URLSearchParams({ artistId, serviceId, month });
+  return request<string[]>(`/availability/month?${params.toString()}`);
+}
+
 export async function createAppointment(payload: CreateAppointmentPayload): Promise<Appointment> {
   const response = await fetch(`${API_BASE_URL}/appointments`, {
     method: "POST",

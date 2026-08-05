@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { fetchArtists, type Artist } from "@/lib/api";
 import {
   cancelAdminAppointment,
   fetchAdminAppointments,
   type AdminAppointment,
 } from "@/lib/adminApi";
-import { addDaysToDateString, formatDateTimeShort, todayDateString } from "@/lib/mendozaTime";
+import {
+  addDaysToDateString,
+  formatDateLong,
+  formatDateTimeShort,
+  formatSlotTime,
+  isoToMendozaDateString,
+  todayDateString,
+} from "@/lib/mendozaTime";
 import { ErrorBox, Spinner } from "@/components/reservation/shared";
 import { RescheduleModal } from "./RescheduleModal";
 
@@ -28,6 +35,22 @@ const DEPOSIT_LABEL: Record<string, string> = {
   PENDING: "Seña pendiente",
   PAID: "Seña pagada",
 };
+
+/**
+ * Parte la lista (que ya viene ordenada por startTime asc del backend) en
+ * bloques de un día calendario Mendoza, conservando ese orden. Sin esto la
+ * tabla es una pared de filas donde no se ve dónde termina un día.
+ */
+function groupByDay(appointments: AdminAppointment[]): { date: string; items: AdminAppointment[] }[] {
+  const groups: { date: string; items: AdminAppointment[] }[] = [];
+  for (const appointment of appointments) {
+    const date = isoToMendozaDateString(appointment.startTime);
+    const last = groups[groups.length - 1];
+    if (last && last.date === date) last.items.push(appointment);
+    else groups.push({ date, items: [appointment] });
+  }
+  return groups;
+}
 
 export function AppointmentsTab({ code }: { code: string }) {
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -160,7 +183,7 @@ export function AppointmentsTab({ code }: { code: string }) {
           <table className="w-full min-w-[720px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b-2 border-plum bg-panel text-xs font-semibold uppercase tracking-wide text-ash">
-                <th className="px-3 py-2.5">Fecha / hora</th>
+                <th className="px-3 py-2.5">Hora</th>
                 <th className="px-3 py-2.5">Tatuador</th>
                 <th className="px-3 py-2.5">Servicio</th>
                 <th className="px-3 py-2.5">Cliente</th>
@@ -170,9 +193,24 @@ export function AppointmentsTab({ code }: { code: string }) {
               </tr>
             </thead>
             <tbody>
-              {appointments.map((appointment) => (
+              {groupByDay(appointments).map((group) => (
+                <Fragment key={group.date}>
+                  <tr>
+                    <th
+                      colSpan={7}
+                      className="border-y-2 border-plum bg-plum/30 px-3 py-2 text-left font-display text-sm text-bone"
+                    >
+                      {formatDateLong(group.date)}
+                      <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-toxic">
+                        {group.items.length} {group.items.length === 1 ? "turno" : "turnos"}
+                      </span>
+                    </th>
+                  </tr>
+                  {group.items.map((appointment) => (
                 <tr key={appointment.id} className="border-b border-plum/40 text-bone">
-                  <td className="px-3 py-2.5 whitespace-nowrap">{formatDateTimeShort(appointment.startTime)}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap font-semibold">
+                    {formatSlotTime(appointment.startTime)}
+                  </td>
                   <td className="px-3 py-2.5">{appointment.artist.name}</td>
                   <td className="px-3 py-2.5">{appointment.service.name}</td>
                   <td className="px-3 py-2.5">
@@ -208,6 +246,8 @@ export function AppointmentsTab({ code }: { code: string }) {
                     )}
                   </td>
                 </tr>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table>

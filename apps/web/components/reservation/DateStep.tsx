@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { fetchMonthAvailability } from "@/lib/api";
 import { BackLink, StepEyebrow } from "./shared";
 
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -34,6 +35,7 @@ export function DateStep({
   title = "Elegí una fecha",
   backLabel = "Cambiar servicio",
   stepInfo,
+  availabilityFor,
 }: {
   onSelect: (date: string) => void;
   /** Sin onBack no se muestra el link de "volver" (ver BlockDayTab, que es un
@@ -44,6 +46,15 @@ export function DateStep({
   title?: string;
   backLabel?: string;
   stepInfo?: { step: number; total: number };
+  /**
+   * Con esto el calendario consulta la disponibilidad del mes visible y
+   * deshabilita los días sin lugar. Va junto (los dos ids o ninguno) porque
+   * la disponibilidad solo existe para un par tatuador+servicio concreto.
+   *
+   * Se omite en BlockDayTab: ahí se elige qué día bloquear, y justamente
+   * interesa poder elegir días que hoy están libres.
+   */
+  availabilityFor?: { artistId: string; serviceId: string };
 }) {
   const today = useMemo(() => {
     const now = new Date();
@@ -65,6 +76,38 @@ export function DateStep({
 
   const canGoBack = viewDate.getFullYear() > today.getFullYear() || viewDate.getMonth() > today.getMonth();
   const canGoForward = viewDate < maxViewDate;
+
+  const visibleMonth = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, "0")}`;
+
+  // null = todavía no sabemos (cargando, sin availabilityFor, o falló la
+  // consulta). En ese caso NO se deshabilita nada: es preferible dejar
+  // clickear un día que quizás esté lleno (el paso siguiente lo dice) antes
+  // que bloquear un calendario entero por un error de red.
+  const [availableDates, setAvailableDates] = useState<Set<string> | null>(null);
+  const [loadingMonth, setLoadingMonth] = useState(false);
+
+  const artistId = availabilityFor?.artistId;
+  const serviceId = availabilityFor?.serviceId;
+
+  useEffect(() => {
+    if (!artistId || !serviceId) return;
+    let alive = true;
+    setLoadingMonth(true);
+    setAvailableDates(null);
+    fetchMonthAvailability(artistId, serviceId, visibleMonth)
+      .then((dates) => {
+        if (alive) setAvailableDates(new Set(dates));
+      })
+      .catch(() => {
+        if (alive) setAvailableDates(null);
+      })
+      .finally(() => {
+        if (alive) setLoadingMonth(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [artistId, serviceId, visibleMonth]);
 
   return (
     <div>
@@ -107,19 +150,43 @@ export function DateStep({
           if (!date) return <div key={`empty-${idx}`} />;
           const isPast = date < today;
           const dateStr = toDateString(date);
+          // Solo se marca como completo si ya tenemos la respuesta del mes.
+          const isFull = !isPast && availableDates !== null && !availableDates.has(dateStr);
+          // Tres estados con peso visual distinto a propósito: lo que hay que
+          // poder escanear de un golpe es "cuáles puedo tocar". Los pasados y
+          // los completos se hunden; el tachado distingue "ya pasó" (no me
+          // importa) de "está lleno" (sí me importa, es información).
+          const stateClasses = isPast
+            ? "border-plum/30 text-ash/25"
+            : isFull
+              ? "border-plum/30 text-ash/30 line-through"
+              : "border-plum text-bone hover:border-gore hover:text-gore";
           return (
             <button
               key={dateStr}
               type="button"
-              disabled={isPast}
+              disabled={isPast || isFull}
               onClick={() => onSelect(dateStr)}
-              className="clip-notch-sm aspect-square border-2 border-plum text-sm text-ashLight transition-colors hover:border-gore hover:text-bone disabled:cursor-not-allowed disabled:border-plum/40 disabled:text-ash/40"
+              title={isFull ? "Sin turnos disponibles" : undefined}
+              className={`clip-notch-sm aspect-square border-2 text-sm transition-colors disabled:cursor-not-allowed ${stateClasses}`}
             >
               {date.getDate()}
             </button>
           );
         })}
       </div>
+
+      {availabilityFor && (
+        <p className="mt-3 text-xs text-ash">
+          {loadingMonth
+            ? "Buscando días disponibles…"
+            : availableDates === null
+              ? "No pudimos verificar qué días tienen lugar; probá eligiendo una fecha."
+              : availableDates.size === 0
+                ? "Este mes no tiene días disponibles. Probá con el mes siguiente."
+                : "Los días tachados no tienen turnos disponibles."}
+        </p>
+      )}
 
       {onBack && (
         <div className="mt-6">

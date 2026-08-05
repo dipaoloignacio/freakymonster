@@ -5,6 +5,22 @@
 // runtime) — ver apps/web/.env.example y el ARG del Dockerfile.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
+// Fotos subidas vía el panel admin devuelven imageUrl bajo "/api/uploads/..."
+// (servido por el backend). En producción eso alcanza tal cual (mismo origen,
+// Nginx de por medio). En dev, web (3000) y api (3001) son orígenes distintos,
+// así que esa ruta relativa resolvería contra localhost:3000 y rompería la
+// imagen — hay que anteponer el origin del backend ahí.
+//
+// Los tatuadores seedeados manualmente (ver prisma/seed.ts) usan en cambio
+// "/artists/nombre.jpg", assets propios de apps/web/public/ — esos SIEMPRE
+// son same-origin y no hay que tocarlos, por eso el chequeo del prefijo.
+const API_ORIGIN = API_BASE_URL.startsWith("http") ? new URL(API_BASE_URL).origin : "";
+
+export function resolveAssetUrl(path: string | null): string | null {
+  if (!path || !path.startsWith("/api/")) return path;
+  return `${API_ORIGIN}${path}`;
+}
+
 export class ApiError extends Error {
   status: number;
 

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { Artist } from "@/lib/api";
+import { resolveAssetUrl, type Artist } from "@/lib/api";
 import { EmptyState, ErrorBox, Spinner, StepEyebrow } from "./shared";
 
 export function ArtistStep({
@@ -36,7 +36,7 @@ export function ArtistStep({
               <div className="relative mb-3 aspect-square overflow-hidden border-2 border-plum">
                 {artist.imageUrl ? (
                   <Image
-                    src={artist.imageUrl}
+                    src={resolveAssetUrl(artist.imageUrl)!}
                     alt={artist.name}
                     fill
                     sizes="(min-width: 640px) 280px, 45vw"

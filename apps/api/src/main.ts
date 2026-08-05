@@ -1,11 +1,24 @@
 import 'dotenv/config';
+import { mkdirSync } from 'fs';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { ARTIST_IMAGES_DIR, UPLOADS_DIR } from './uploads.constants';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // multer no crea directorios intermedios solo — si uploads/artists no
+  // existe (primer arranque en un volumen nuevo), los uploads fallarían.
+  mkdirSync(ARTIST_IMAGES_DIR, { recursive: true });
+
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+  // Sirve apps/api/uploads/ como estático bajo /api/uploads/ — mismo
+  // prefijo que setGlobalPrefix('api') usa para las rutas de controllers,
+  // pero useStaticAssets no lo hereda automáticamente, así que hay que
+  // escribirlo a mano acá.
+  app.useStaticAssets(UPLOADS_DIR, { prefix: '/api/uploads/' });
 
   // Todo vive bajo un solo dominio: Nginx manda /api/* acá tal cual (sin
   // sacar el prefijo), así que las rutas internas tienen que responder en

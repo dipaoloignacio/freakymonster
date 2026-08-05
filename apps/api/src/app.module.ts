@@ -9,6 +9,7 @@ import { AppointmentsModule } from './appointments/appointments.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ArtistsModule } from './artists/artists.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ArtistsModule } from './artists/artists.module';
     PaymentsModule,
     NotificationsModule,
     ArtistsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

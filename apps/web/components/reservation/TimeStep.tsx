@@ -13,6 +13,7 @@ export function TimeStep({
   refreshKey,
   onSelect,
   onBack,
+  stepInfo,
 }: {
   artistId: string;
   serviceId: string;
@@ -21,6 +22,8 @@ export function TimeStep({
   refreshKey: number;
   onSelect: (iso: string) => void;
   onBack: () => void;
+  /** El panel de admin (RescheduleModal) no numera pasos. */
+  stepInfo?: { step: number; total: number };
 }) {
   const [slots, setSlots] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,7 +52,7 @@ export function TimeStep({
 
   return (
     <div>
-      <StepEyebrow step={4} total={5} label={`Horarios para el ${formatDateLong(date)}`} />
+      <StepEyebrow step={stepInfo?.step} total={stepInfo?.total} label={`Horarios para el ${formatDateLong(date)}`} />
 
       {conflictMessage && (
         <div className="clip-notch-sm mb-4 border-2 border-gore bg-gore/10 p-4 text-center text-sm font-semibold text-bone">

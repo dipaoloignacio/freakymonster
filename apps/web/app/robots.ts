@@ -7,6 +7,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
+      // El código del panel de admin viaja en la URL — no debe indexarse.
+      disallow: "/turnos/",
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
   };

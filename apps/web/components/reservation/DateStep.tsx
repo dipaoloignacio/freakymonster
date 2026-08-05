@@ -31,9 +31,19 @@ function buildMonthGrid(year: number, month: number): (Date | null)[] {
 export function DateStep({
   onSelect,
   onBack,
+  title = "Elegí una fecha",
+  backLabel = "Cambiar servicio",
+  stepInfo,
 }: {
   onSelect: (date: string) => void;
-  onBack: () => void;
+  /** Sin onBack no se muestra el link de "volver" (ver BlockDayTab, que es un
+   * tab suelto sin paso anterior al que volver). */
+  onBack?: () => void;
+  /** Default pensado para el wizard de reserva. El panel de admin
+   * (RescheduleModal) pasa un título/label propios, sin numerar pasos. */
+  title?: string;
+  backLabel?: string;
+  stepInfo?: { step: number; total: number };
 }) {
   const today = useMemo(() => {
     const now = new Date();
@@ -58,7 +68,7 @@ export function DateStep({
 
   return (
     <div>
-      <StepEyebrow step={3} total={5} label="Elegí una fecha" />
+      <StepEyebrow step={stepInfo?.step} total={stepInfo?.total} label={title} />
 
       <div className="mb-4 flex items-center justify-between">
         <button
@@ -111,9 +121,11 @@ export function DateStep({
         })}
       </div>
 
-      <div className="mt-6">
-        <BackLink onClick={onBack}>Cambiar servicio</BackLink>
-      </div>
+      {onBack && (
+        <div className="mt-6">
+          <BackLink onClick={onBack}>{backLabel}</BackLink>
+        </div>
+      )}
     </div>
   );
 }

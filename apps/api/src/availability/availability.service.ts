@@ -11,7 +11,9 @@ import { GetAvailabilityDto } from './dto/get-availability.dto';
 
 // Ver convención de zona horaria del proyecto en src/common/timezone.ts.
 
-function parseTimeToMinutes(time: string): number {
+// Exportado porque AdminService también lo necesita (revalidar horario al
+// reprogramar) — no lo reimplementes ahí.
+export function parseTimeToMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map(Number);
   return hours * 60 + minutes;
 }
@@ -23,6 +25,7 @@ function minutesToHHMM(totalMinutes: number): string {
 }
 
 interface AppointmentRange {
+  id: string;
   startTime: Date;
   endTime: Date;
 }

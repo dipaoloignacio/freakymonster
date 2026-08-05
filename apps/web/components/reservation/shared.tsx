@@ -32,12 +32,17 @@ export function EmptyState({ message }: { message: string }) {
   );
 }
 
-export function StepEyebrow({ step, total, label }: { step: number; total: number; label: string }) {
+// step/total son opcionales para poder reusar DateStep/TimeStep fuera del
+// wizard de reserva (ver panel de admin, RescheduleModal) sin mostrar un
+// "Paso X de Y" que no tiene sentido ahí.
+export function StepEyebrow({ step, total, label }: { step?: number; total?: number; label: string }) {
   return (
     <div className="mb-5">
-      <div className="mb-1.5 text-xs font-semibold uppercase tracking-[3px] text-toxic">
-        Paso {step} de {total}
-      </div>
+      {step !== undefined && total !== undefined && (
+        <div className="mb-1.5 text-xs font-semibold uppercase tracking-[3px] text-toxic">
+          Paso {step} de {total}
+        </div>
+      )}
       <h3 className="font-display text-xl text-bone">{label}</h3>
     </div>
   );

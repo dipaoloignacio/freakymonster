@@ -26,6 +26,13 @@ pnpm-debug.log*
 # Testing / coverage
 coverage/
 
+# Archivos subidos (fotos de tatuadores) — en producción viven en un volumen
+# de Docker, no en el repo. Se mantiene la carpeta versionada vía .gitkeep.
+apps/api/uploads/*
+!apps/api/uploads/artists
+apps/api/uploads/artists/*
+!apps/api/uploads/artists/.gitkeep
+
 # Cache
 .cache/
 .eslintcache

@@ -50,3 +50,23 @@ export function todayDateString(): string {
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+/** "YYYY-MM-DD" + N días → "YYYY-MM-DD" (para el rango default del panel). */
+export function addDaysToDateString(dateStr: string, days: number): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** ISO UTC → "mar 11 ago, 14:00" en hora Mendoza — para filas de tabla. */
+export function formatDateTimeShort(iso: string): string {
+  const date = new Date(iso);
+  const datePart = new Intl.DateTimeFormat("es-AR", {
+    timeZone: MENDOZA_TZ,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(date);
+  return `${datePart}, ${formatSlotTime(iso)}`;
+}

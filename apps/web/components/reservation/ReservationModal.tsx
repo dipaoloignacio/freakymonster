@@ -291,7 +291,9 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
               {step === "service" && artist && (
                 <ServiceStep artist={artist} onSelect={selectService} onBack={goBack} />
               )}
-              {step === "date" && <DateStep onSelect={selectDate} onBack={goBack} />}
+              {step === "date" && (
+                <DateStep onSelect={selectDate} onBack={goBack} stepInfo={{ step: 3, total: 5 }} />
+              )}
               {step === "time" && artist && service && date && (
                 <TimeStep
                   artistId={artist.id}
@@ -301,6 +303,7 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
                   refreshKey={availabilityRefreshKey}
                   onSelect={selectSlot}
                   onBack={goBack}
+                  stepInfo={{ step: 4, total: 5 }}
                 />
               )}
               {step === "customer" && artist && service && date && slotIso && (

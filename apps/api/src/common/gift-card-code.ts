@@ -44,6 +44,37 @@ export function generateGiftCardCode(): string {
 }
 
 /**
+ * Lleva lo que tipeó el admin a la forma exacta con la que está guardado el
+ * código ("FM-7K3M-XPWD"), o null si no puede ser un código nuestro.
+ *
+ * Tolera minúsculas, espacios y guiones puestos donde sea (o ninguno), porque
+ * el código se dicta por teléfono y se copia a mano: exigir el formato exacto
+ * convertiría un typo de tipeo en "esta gift card no existe", que es un
+ * mensaje que manda al admin a buscar el problema en el lugar equivocado.
+ *
+ * Devolver la forma canónica —en vez de comparar con LIKE o lower()— deja la
+ * búsqueda contra el índice único de `code`.
+ */
+export function canonicalizeGiftCardCode(rawCode: string): string | null {
+  const compact = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const expectedLength = PREFIX.length + GROUP_LENGTH * GROUPS;
+  if (compact.length !== expectedLength || !compact.startsWith(PREFIX)) {
+    return null;
+  }
+
+  const body = compact.slice(PREFIX.length);
+  if (![...body].every((char) => ALPHABET.includes(char))) {
+    return null;
+  }
+
+  const groups = Array.from({ length: GROUPS }, (_, index) =>
+    body.slice(index * GROUP_LENGTH, (index + 1) * GROUP_LENGTH),
+  );
+  return [PREFIX, ...groups].join('-');
+}
+
+/**
  * Fecha de vencimiento de una card comprada en `from`. Sumar meses (y no
  * días) hace que "6 meses" caiga siempre en el mismo día del mes, que es lo
  * que espera leer el cliente en la tarjeta.

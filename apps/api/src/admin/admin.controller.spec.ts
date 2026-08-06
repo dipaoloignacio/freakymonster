@@ -25,6 +25,7 @@ describe('AdminController', () => {
             deleteService: jest.fn(),
             assignServiceToArtist: jest.fn(),
             unassignServiceFromArtist: jest.fn(),
+            findGiftCardByCode: jest.fn(),
             listGiftCardTiers: jest.fn(),
             createGiftCardTier: jest.fn(),
             updateGiftCardTier: jest.fn(),

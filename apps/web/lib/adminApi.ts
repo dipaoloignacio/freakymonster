@@ -20,6 +20,9 @@ export interface AdminAppointment {
   createdAt: string;
   artist: { id: string; name: string };
   service: { id: string; name: string; durationMinutes: number };
+  /** Gift cards canjeadas en este turno. Lista por el modelo, pero hoy el
+   *  canje es de a una — ver el comentario de Appointment en schema.prisma. */
+  redeemedGiftCards: { id: string; code: string | null; amount: string }[];
 }
 
 export interface AdminAppointmentFilters {
@@ -75,6 +78,8 @@ export interface CreateAdminAppointmentPayload {
   customerPhone: string;
   customerEmail?: string;
   notes?: string;
+  /** Si viene, se canjea junto con la creación del turno (todo o nada). */
+  giftCardCode?: string;
 }
 
 /**
@@ -351,4 +356,32 @@ export function updateAdminGiftCardTier(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+}
+
+// --- Gift cards emitidas: búsqueda para canjear -------------------------
+
+export interface AdminGiftCardLookup {
+  id: string;
+  code: string;
+  amount: string;
+  status: "PENDING" | "ACTIVE" | "REDEEMED" | "EXPIRED";
+  expiresAt: string | null;
+  purchaserName: string;
+  purchaserEmail: string;
+  recipientName: string | null;
+  recipientEmail: string | null;
+  /** false si no se puede canjear; el motivo viene en rejectionReason. */
+  redeemable: boolean;
+  rejectionReason: string | null;
+}
+
+/**
+ * Busca una gift card por código para canjearla. Tolera minúsculas y guiones
+ * puestos de cualquier forma: el admin la tipea de lo que le dicta el cliente.
+ *
+ * 404 si no existe. Si existe pero no sirve, responde 200 igual con
+ * `redeemable: false` y el motivo — el admin necesita poder explicarlo.
+ */
+export function fetchAdminGiftCardByCode(code: string, adminCode: string): Promise<AdminGiftCardLookup> {
+  return adminRequest(adminCode, `/admin/gift-cards/${encodeURIComponent(code)}`);
 }

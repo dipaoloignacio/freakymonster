@@ -8,7 +8,8 @@ import {
   type Artist,
   type ArtistServiceOption,
 } from "@/lib/api";
-import { createAdminAppointment } from "@/lib/adminApi";
+import { createAdminAppointment, type AdminGiftCardLookup } from "@/lib/adminApi";
+import { GiftCardRedeemField } from "./GiftCardRedeemField";
 import { isoToMendozaHHmm } from "@/lib/mendozaTime";
 import { DateStep } from "@/components/reservation/DateStep";
 import { TimeStep } from "@/components/reservation/TimeStep";
@@ -47,6 +48,12 @@ export function NewAppointmentModal({
   const [slotIso, setSlotIso] = useState<string | null>(null);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Código tipeado y resultado de la verificación. Solo se manda al backend si
+  // la card resultó canjeable: mandar una rechazada haría fallar el alta
+  // entera, y el admin ya vio el motivo en pantalla.
+  const [giftCardCode, setGiftCardCode] = useState("");
+  const [giftCard, setGiftCard] = useState<AdminGiftCardLookup | null>(null);
 
   const artist = artists?.find((a) => a.id === artistId) ?? null;
   const service = services?.find((s) => s.id === serviceId) ?? null;
@@ -102,6 +109,7 @@ export function NewAppointmentModal({
         date,
         startTime: isoToMendozaHHmm(slotIso),
         ...data,
+        ...(giftCard?.redeemable ? { giftCardCode } : {}),
       });
       onCreated();
     } catch (err) {
@@ -228,15 +236,25 @@ export function NewAppointmentModal({
         )}
 
         {step === "customer" && artist && service && date && slotIso && (
-          <CustomerStep
-            artist={artist}
-            service={service}
-            date={date}
-            slotIso={slotIso}
-            onSubmit={handleSubmit}
-            onBack={() => setStep("time")}
-            title="Datos del cliente"
-          />
+          <>
+            <GiftCardRedeemField
+              adminCode={code}
+              verified={giftCard}
+              onVerified={(result, rawCode) => {
+                setGiftCard(result);
+                setGiftCardCode(rawCode);
+              }}
+            />
+            <CustomerStep
+              artist={artist}
+              service={service}
+              date={date}
+              slotIso={slotIso}
+              onSubmit={handleSubmit}
+              onBack={() => setStep("time")}
+              title="Datos del cliente"
+            />
+          </>
         )}
 
         {step !== "who" && (

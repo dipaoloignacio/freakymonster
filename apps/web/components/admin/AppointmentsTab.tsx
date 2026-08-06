@@ -262,7 +262,22 @@ export function AppointmentsTab({ code }: { code: string }) {
                       {STATUS_LABEL[appointment.status]}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-ashLight">{DEPOSIT_LABEL[appointment.depositStatus]}</td>
+                  <td className="px-3 py-2.5 text-xs text-ashLight">
+                    {/* Con gift card el badge reemplaza al texto de la seña en
+                        vez de sumarse: "Seña pagada" a secas no dice con qué se
+                        pagó, y esa es justamente la trazabilidad que hace falta
+                        cuando no hay un pago de Mercado Pago detrás. */}
+                    {appointment.redeemedGiftCards.length > 0 ? (
+                      <span
+                        title={`Pagado con la gift card ${appointment.redeemedGiftCards[0].code}`}
+                        className="inline-block border border-toxic px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-toxic"
+                      >
+                        Gift card · {appointment.redeemedGiftCards[0].code}
+                      </span>
+                    ) : (
+                      DEPOSIT_LABEL[appointment.depositStatus]
+                    )}
+                  </td>
                   <td className="px-3 py-2.5">
                     {appointment.status !== "CANCELLED" && (
                       <div className="flex gap-2">

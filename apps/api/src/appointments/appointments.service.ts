@@ -22,6 +22,20 @@ export interface CreateAppointmentOptions {
    * cancele solo a los 15 minutos.
    */
   applyDepositExpiry: boolean;
+  /**
+   * Estado de seña con el que nace el turno. Por defecto NONE: la seña la
+   * marca el webhook de Mercado Pago. El alta con gift card lo pisa con PAID,
+   * porque esa seña ya quedó cubierta.
+   */
+  depositStatus?: DepositStatus;
+  /**
+   * Corre DENTRO de la transacción que crea el turno, con el turno ya
+   * insertado. Existe para el canje de gift cards: marcar la card y crear el
+   * turno tienen que ser atómicos — si el canje falla, el turno no puede
+   * quedar creado, y si el turno falla por doble reserva, la card no puede
+   * quedar quemada. Lanzar acá aborta las dos cosas.
+   */
+  onCreated?: (tx: Prisma.TransactionClient, appointmentId: string) => Promise<void>;
 }
 
 const PUBLIC_BOOKING: CreateAppointmentOptions = {
@@ -90,7 +104,7 @@ export class AppointmentsService {
             throw new ConflictException(SLOT_TAKEN_MESSAGE);
           }
 
-          return tx.appointment.create({
+          const appointment = await tx.appointment.create({
             data: {
               artistId,
               serviceId,
@@ -101,13 +115,22 @@ export class AppointmentsService {
               startTime: candidateStart,
               endTime: candidateEnd,
               status: options.status,
-              // Siempre NONE al crear: la seña la marca el webhook de Mercado
-              // Pago (flujo público) o la coordina el estudio por afuera
-              // (alta manual). Nunca se da por pagada al crear el turno.
-              depositStatus: DepositStatus.NONE,
+              // NONE salvo que quien llama diga lo contrario: la seña la marca
+              // el webhook de Mercado Pago (flujo público) o la coordina el
+              // estudio por afuera (alta manual). El único caso que nace
+              // pagado es el canje de gift card.
+              depositStatus: options.depositStatus ?? DepositStatus.NONE,
               expiresAt,
             },
           });
+
+          // Después del insert y todavía dentro de la transacción: si esto
+          // lanza, el turno se va con él.
+          if (options.onCreated) {
+            await options.onCreated(tx, appointment.id);
+          }
+
+          return appointment;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );

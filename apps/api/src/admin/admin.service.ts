@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { AppointmentStatus, Prisma } from '@prisma/client';
+import { AppointmentStatus, DepositStatus, GiftCardStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService, parseTimeToMinutes } from '../availability/availability.service';
 import { AppointmentsService } from '../appointments/appointments.service';
@@ -13,12 +13,21 @@ import { CreateArtistDto } from './dto/create-artist.dto';
 import { UpdateArtistDto } from './dto/update-artist.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { CreateAdminAppointmentDto } from './dto/create-admin-appointment.dto';
 import { CreateGiftCardTierDto } from './dto/create-gift-card-tier.dto';
 import { UpdateGiftCardTierDto } from './dto/update-gift-card-tier.dto';
 import { SetWeeklyAvailabilityDto } from './dto/set-weekly-availability.dto';
+import { canonicalizeGiftCardCode } from '../common/gift-card-code';
+import { giftCardRejectionReason } from '../common/gift-card-redemption';
 import { ARTIST_IMAGES_URL_PREFIX } from '../uploads.constants';
 
-const APPOINTMENT_INCLUDE = { artist: true, service: true } as const;
+// redeemedGiftCards: para que la lista del panel pueda marcar de un vistazo
+// qué turnos se pagaron con gift card, y con cuál.
+const APPOINTMENT_INCLUDE = {
+  artist: true,
+  service: true,
+  redeemedGiftCards: { select: { id: true, code: true, amount: true } },
+} as const;
 
 /**
  * Martes a sábado, 12:00–20:00 (horario general del estudio, el mismo que
@@ -63,12 +72,29 @@ export class AdminService {
    *    turno solo a los 15 minutos de haberlo cargado.
    *
    * La seña, si el servicio la pide, queda en NONE y la coordina el estudio
-   * por su cuenta.
+   * por su cuenta — salvo que se canjee una gift card, ver abajo.
+   *
+   * Con `giftCardCode`, el canje va DENTRO de la transacción que crea el
+   * turno (hook onCreated): si la card no sirve, el turno no se crea, y si el
+   * horario se ocupó en el ínterin, la card no queda quemada. Además el turno
+   * nace con depositStatus PAID: la seña está cubierta por la card, y dejarla
+   * en NONE la mostraría como pendiente de cobro en el panel para siempre.
+   * Que fue con gift card y no con Mercado Pago se ve igual, porque el turno
+   * queda vinculado a la card canjeada.
    */
-  async createAppointment(dto: CreateAppointmentDto) {
-    const created = await this.appointmentsService.create(dto, {
+  async createAppointment(dto: CreateAdminAppointmentDto) {
+    const { giftCardCode, ...appointmentDto } = dto;
+
+    const created = await this.appointmentsService.create(appointmentDto, {
       status: AppointmentStatus.CONFIRMED,
       applyDepositExpiry: false,
+      ...(giftCardCode
+        ? {
+            depositStatus: DepositStatus.PAID,
+            onCreated: (tx, appointmentId) =>
+              this.redeemGiftCardInTransaction(tx, giftCardCode, appointmentId),
+          }
+        : {}),
     });
 
     // create() devuelve el turno pelado; el panel (y el email) necesitan
@@ -529,6 +555,66 @@ export class AdminService {
   // toca una card ya vendida. Por eso acá no hay degradación a desactivar ni
   // conteos de uso como en artistas o servicios.
   // ---------------------------------------------------------------------
+
+  /**
+   * Busca una gift card por su código para el panel.
+   *
+   * Devuelve los datos SIEMPRE que exista, incluso si no se puede usar, con el
+   * motivo del rechazo: el admin tiene al cliente enfrente y necesita poder
+   * decirle "esta se canjeó el 3 de julio", no solo "no sirve".
+   */
+  async findGiftCardByCode(rawCode: string) {
+    const code = canonicalizeGiftCardCode(rawCode);
+    // Un código con formato imposible es indistinguible de uno inexistente
+    // para quien lo está tipeando, así que se responde igual.
+    const giftCard = code ? await this.prisma.giftCard.findUnique({ where: { code } }) : null;
+
+    if (!giftCard) {
+      throw new NotFoundException('No encontramos ninguna gift card con ese código');
+    }
+
+    const rejectionReason = giftCardRejectionReason(giftCard);
+    return { ...giftCard, redeemable: rejectionReason === null, rejectionReason };
+  }
+
+  /**
+   * Valida y canjea la card DENTRO de la transacción que crea el turno.
+   *
+   * El update condicionado a status ACTIVE (updateMany + chequeo de count, que
+   * es la única forma de filtrar por un campo no único) es lo que hace que dos
+   * canjes simultáneos del mismo código no puedan pasar los dos: el segundo
+   * afecta 0 filas y aborta. Validar antes con un findUnique y después
+   * actualizar sin condición dejaría esa ventana abierta.
+   */
+  private async redeemGiftCardInTransaction(
+    tx: Prisma.TransactionClient,
+    rawCode: string,
+    appointmentId: string,
+  ) {
+    const code = canonicalizeGiftCardCode(rawCode);
+    const giftCard = code ? await tx.giftCard.findUnique({ where: { code } }) : null;
+    if (!giftCard) {
+      throw new NotFoundException('No encontramos ninguna gift card con ese código');
+    }
+
+    const rejectionReason = giftCardRejectionReason(giftCard);
+    if (rejectionReason) {
+      throw new BadRequestException(rejectionReason);
+    }
+
+    const { count } = await tx.giftCard.updateMany({
+      where: { id: giftCard.id, status: GiftCardStatus.ACTIVE },
+      data: {
+        status: GiftCardStatus.REDEEMED,
+        redeemedAt: new Date(),
+        redeemedByAppointmentId: appointmentId,
+      },
+    });
+
+    if (count !== 1) {
+      throw new ConflictException('Esta gift card se acaba de canjear en otro turno');
+    }
+  }
 
   async listGiftCardTiers() {
     // Activos e inactivos: es la vista de administración. El listado público

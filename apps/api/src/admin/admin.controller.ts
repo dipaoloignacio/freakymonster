@@ -12,7 +12,7 @@ import { UpdateServiceDto } from './dto/update-service.dto';
 import { SetWeeklyAvailabilityDto } from './dto/set-weekly-availability.dto';
 import { CreateGiftCardTierDto } from './dto/create-gift-card-tier.dto';
 import { UpdateGiftCardTierDto } from './dto/update-gift-card-tier.dto';
-import { CreateAppointmentDto } from '../appointments/dto/create-appointment.dto';
+import { CreateAdminAppointmentDto } from './dto/create-admin-appointment.dto';
 import { artistImageMulterOptions } from './multer-artist-image.config';
 
 @Controller('admin')
@@ -29,7 +29,7 @@ export class AdminController {
   // /appointments público, pero nace CONFIRMED y sin vencimiento de seña.
   // Ver AdminService.createAppointment().
   @Post('appointments')
-  createAppointment(@Body() dto: CreateAppointmentDto) {
+  createAppointment(@Body() dto: CreateAdminAppointmentDto) {
     return this.adminService.createAppointment(dto);
   }
 
@@ -120,6 +120,13 @@ export class AdminController {
   @Delete('artists/:artistId/services/:serviceId')
   unassignServiceFromArtist(@Param('artistId') artistId: string, @Param('serviceId') serviceId: string) {
     return this.adminService.unassignServiceFromArtist(artistId, serviceId);
+  }
+
+  // Búsqueda por código para el canje desde el panel. Devuelve la card aunque
+  // no se pueda usar, con el motivo — ver AdminService.findGiftCardByCode().
+  @Get('gift-cards/:code')
+  findGiftCardByCode(@Param('code') code: string) {
+    return this.adminService.findGiftCardByCode(code);
   }
 
   // Montos de gift card. Devuelve activos e inactivos: es la vista de

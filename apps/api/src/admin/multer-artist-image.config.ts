@@ -4,7 +4,16 @@ import { BadRequestException } from '@nestjs/common';
 import { diskStorage } from 'multer';
 import { ARTIST_IMAGES_DIR } from '../uploads.constants';
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+// 10 MB para que entre una foto de celular sin comprimir, que es lo que el
+// estudio sube en la práctica. No afecta lo que descarga un visitante: el
+// original se guarda tal cual, pero next/image lo sirve redimensionado y en
+// formato moderno, así que el peso de la página no depende de este número.
+//
+// Tiene que coincidir con el client_max_body_size de Nginx: si Nginx corta
+// antes, la request muere en el proxy con un 413 y el backend ni se entera —
+// era exactamente el síntoma, porque Nginx no tenía la directiva y aplicaba
+// su default de 1 MB.
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export const artistImageMulterOptions = {
   storage: diskStorage({

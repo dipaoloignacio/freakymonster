@@ -301,3 +301,54 @@ export function assignServiceToArtist(code: string, artistId: string, serviceId:
 export function unassignServiceFromArtist(code: string, artistId: string, serviceId: string): Promise<unknown> {
   return adminRequest(code, `/admin/artists/${artistId}/services/${serviceId}`, { method: "DELETE" });
 }
+
+// --- Gift cards: montos configurables -----------------------------------
+//
+// Un "tier" es solo un monto que el estudio ofrece. Las gift cards emitidas
+// guardan su propio importe como snapshot y no apuntan al tier, así que editar
+// un monto acá nunca cambia el valor de una card ya vendida.
+
+export interface AdminGiftCardTier {
+  id: string;
+  // Decimal de Prisma serializado: llega como string, igual que depositAmount.
+  amount: string;
+  label: string | null;
+  active: boolean;
+}
+
+export interface GiftCardTierFormInput {
+  amount?: number;
+  /** null borra el label; undefined lo deja como está. */
+  label?: string | null;
+  active?: boolean;
+}
+
+export function fetchAdminGiftCardTiers(code: string): Promise<AdminGiftCardTier[]> {
+  return adminRequest(code, "/admin/gift-card-tiers");
+}
+
+export function createAdminGiftCardTier(
+  code: string,
+  input: GiftCardTierFormInput & { amount: number }
+): Promise<AdminGiftCardTier> {
+  return adminRequest(code, "/admin/gift-card-tiers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+// No hay DELETE: un monto se saca de circulación desactivándolo. Borrarlo no
+// aportaría nada (las cards ya emitidas no lo referencian) y perdería el
+// registro de qué se ofrecía.
+export function updateAdminGiftCardTier(
+  code: string,
+  id: string,
+  input: GiftCardTierFormInput
+): Promise<AdminGiftCardTier> {
+  return adminRequest(code, `/admin/gift-card-tiers/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}

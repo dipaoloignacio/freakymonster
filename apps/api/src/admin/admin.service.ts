@@ -13,6 +13,8 @@ import { CreateArtistDto } from './dto/create-artist.dto';
 import { UpdateArtistDto } from './dto/update-artist.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { CreateGiftCardTierDto } from './dto/create-gift-card-tier.dto';
+import { UpdateGiftCardTierDto } from './dto/update-gift-card-tier.dto';
 import { SetWeeklyAvailabilityDto } from './dto/set-weekly-availability.dto';
 import { ARTIST_IMAGES_URL_PREFIX } from '../uploads.constants';
 
@@ -516,6 +518,50 @@ export class AdminService {
     });
 
     return { deleted: true, appointmentCount: 0, service: deleted };
+  }
+
+  // ---------------------------------------------------------------------
+  // Gift cards — montos configurables
+  //
+  // Los tiers son solo el catálogo de montos que ofrece el estudio. Las gift
+  // cards emitidas (modelo GiftCard) guardan su propio `amount` como
+  // snapshot y NO apuntan al tier, así que editar o desactivar un tier nunca
+  // toca una card ya vendida. Por eso acá no hay degradación a desactivar ni
+  // conteos de uso como en artistas o servicios.
+  // ---------------------------------------------------------------------
+
+  async listGiftCardTiers() {
+    // Activos e inactivos: es la vista de administración. El listado público
+    // (fase de compra) va a filtrar por active.
+    return this.prisma.giftCardTier.findMany({ orderBy: { amount: 'asc' } });
+  }
+
+  async createGiftCardTier(dto: CreateGiftCardTierDto) {
+    return this.prisma.giftCardTier.create({
+      data: {
+        amount: dto.amount,
+        label: dto.label ?? null,
+        active: dto.active ?? true,
+      },
+    });
+  }
+
+  async updateGiftCardTier(id: string, dto: UpdateGiftCardTierDto) {
+    const tier = await this.prisma.giftCardTier.findUnique({ where: { id } });
+    if (!tier) {
+      throw new NotFoundException('Monto de gift card no encontrado');
+    }
+
+    return this.prisma.giftCardTier.update({
+      where: { id },
+      data: {
+        ...(dto.amount !== undefined ? { amount: dto.amount } : {}),
+        // null es un valor válido acá (borrar el label), por eso se compara
+        // contra undefined y no se usa un ?? que lo confundiría con "no vino".
+        ...(dto.label !== undefined ? { label: dto.label } : {}),
+        ...(dto.active !== undefined ? { active: dto.active } : {}),
+      },
+    });
   }
 
   private async assertArtistAndServiceExist(artistId: string, serviceId: string) {

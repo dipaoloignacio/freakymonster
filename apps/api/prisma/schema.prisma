@@ -93,4 +93,66 @@ model Appointment {
 
   artist  Artist  @relation(fields: [artistId], references: [id])
   service Service @relation(fields: [serviceId], references: [id])
+
+  // Las gift cards que se canjearon en este turno. Es una lista y no un
+  // vínculo 1-1 a propósito: todavía no está definido si una reserva puede
+  // pagarse con más de una gift card, y un @unique acá sería una decisión
+  // difícil de revertir después (habría que limpiar datos). Al revés —
+  // agregarlo cuando la fase de canje defina la regla— es trivial.
+  redeemedGiftCards GiftCard[]
+}
+
+/// Montos de gift card que ofrece el estudio. El estudio los edita desde el
+/// panel; el público solo ve los activos (fase de compra).
+model GiftCardTier {
+  id     String  @id @default(cuid())
+  amount Decimal @db.Decimal(10, 2)
+  label  String?
+  active Boolean @default(true)
+
+  // Sin relación a GiftCard a propósito: ver el comentario de GiftCard.amount.
+}
+
+enum GiftCardStatus {
+  ACTIVE
+  REDEEMED
+  EXPIRED
+}
+
+model GiftCard {
+  id String @id @default(cuid())
+
+  /// Formato FM-XXXX-XXXX con un alfabeto sin caracteres confundibles — se
+  /// dicta por teléfono y se escribe a mano. Ver generateGiftCardCode() en
+  /// src/common/gift-card-code.ts. @unique ya crea el índice.
+  code String @unique
+
+  /// Snapshot del monto al momento de la compra, NO una FK a GiftCardTier:
+  /// el estudio puede cambiarle el precio a un tier mañana, y esta card ya se
+  /// pagó a un valor fijo. Guardar la referencia haría que su valor mutara
+  /// solo, retroactivamente.
+  amount Decimal        @db.Decimal(10, 2)
+  status GiftCardStatus @default(ACTIVE)
+
+  purchaserName  String
+  purchaserEmail String
+
+  // Regalar es opcional: alguien puede comprarla para sí mismo.
+  recipientName  String?
+  recipientEmail String?
+  message        String? @db.VarChar(500)
+
+  /// Pago de Mercado Pago que la generó, para trazabilidad. Opcional porque
+  /// una card emitida a mano por el estudio no tiene pago online detrás.
+  mpPaymentId String?
+
+  /// Se calcula al comprar (GIFT_CARD_VALIDITY_MONTHS desde la compra), no lo
+  /// pone la base: el default vive en código para poder cambiarlo sin migrar.
+  expiresAt DateTime
+
+  redeemedAt              DateTime?
+  redeemedByAppointmentId String?
+  createdAt               DateTime  @default(now())
+
+  redeemedByAppointment Appointment? @relation(fields: [redeemedByAppointmentId], references: [id])
 }

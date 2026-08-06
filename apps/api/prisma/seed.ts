@@ -10,6 +10,10 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  // Las gift cards emitidas van antes que Appointment: la FK
+  // redeemedByAppointmentId apunta ahí.
+  await prisma.giftCard.deleteMany();
+  await prisma.giftCardTier.deleteMany();
   await prisma.appointment.deleteMany();
   await prisma.availabilityBlock.deleteMany();
   await prisma.weeklyAvailability.deleteMany();
@@ -93,12 +97,23 @@ async function main() {
     },
   });
 
+  // Montos de gift card de arranque. Son editables desde el panel: esto es un
+  // punto de partida para no dejar la pestaña vacía, no una lista fija.
+  const giftCardTiers = await prisma.giftCardTier.createManyAndReturn({
+    data: [
+      { amount: 30000, label: 'Regalo chico' },
+      { amount: 60000, label: 'Regalo mediano' },
+      { amount: 120000, label: 'Regalo grande' },
+    ],
+  });
+
   console.log('Seed OK:', {
     renzoId: renzo.id,
     cataId: cata.id,
     smallServiceId: small.id,
     mediumServiceId: medium.id,
     largeServiceId: large.id,
+    giftCardTierIds: giftCardTiers.map((tier) => tier.id),
   });
 }
 

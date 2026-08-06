@@ -10,6 +10,8 @@ import { UpdateArtistDto } from './dto/update-artist.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { SetWeeklyAvailabilityDto } from './dto/set-weekly-availability.dto';
+import { CreateGiftCardTierDto } from './dto/create-gift-card-tier.dto';
+import { UpdateGiftCardTierDto } from './dto/update-gift-card-tier.dto';
 import { CreateAppointmentDto } from '../appointments/dto/create-appointment.dto';
 import { artistImageMulterOptions } from './multer-artist-image.config';
 
@@ -118,5 +120,24 @@ export class AdminController {
   @Delete('artists/:artistId/services/:serviceId')
   unassignServiceFromArtist(@Param('artistId') artistId: string, @Param('serviceId') serviceId: string) {
     return this.adminService.unassignServiceFromArtist(artistId, serviceId);
+  }
+
+  // Montos de gift card. Devuelve activos e inactivos: es la vista de
+  // administración. No hay DELETE — desactivar es un PATCH con active=false, y
+  // borrar un tier no aportaría nada porque las gift cards ya emitidas no lo
+  // referencian (ver AdminService y el comentario de GiftCard.amount).
+  @Get('gift-card-tiers')
+  findGiftCardTiers() {
+    return this.adminService.listGiftCardTiers();
+  }
+
+  @Post('gift-card-tiers')
+  createGiftCardTier(@Body() dto: CreateGiftCardTierDto) {
+    return this.adminService.createGiftCardTier(dto);
+  }
+
+  @Patch('gift-card-tiers/:id')
+  updateGiftCardTier(@Param('id') id: string, @Body() dto: UpdateGiftCardTierDto) {
+    return this.adminService.updateGiftCardTier(id, dto);
   }
 }

@@ -14,6 +14,12 @@ import { PhoneField, phoneValidationError } from "./PhoneField";
 // atajar el typo obvio antes de crear el turno.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function formatMoney(amount: string): string {
+  const value = Number(amount);
+  if (Number.isNaN(value)) return amount;
+  return value.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+}
+
 export interface CustomerFormData {
   customerName: string;
   customerPhone: string;
@@ -31,6 +37,7 @@ export function CustomerStep({
   stepInfo,
   title = "Tus datos",
   emailRequired = true,
+  continuesToPayment = true,
 }: {
   artist: Artist;
   service: ArtistServiceOption;
@@ -50,6 +57,13 @@ export function CustomerStep({
    * distintos (CreateAppointmentDto vs CreateAdminAppointmentDto).
    */
   emailRequired?: boolean;
+  /**
+   * Si después de confirmar viene el checkout de Mercado Pago. Es true en el
+   * wizard público y false en el alta del panel, donde el turno se crea
+   * directo sin cobrar nada — aun cuando el servicio tenga seña, que ahí la
+   * coordina el estudio por su cuenta.
+   */
+  continuesToPayment?: boolean;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -59,6 +73,12 @@ export function CustomerStep({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // El botón tiene que anticipar lo que pasa al tocarlo: en el wizard público,
+  // un servicio con seña sale a Mercado Pago en vez de terminar acá. Depende
+  // de las dos condiciones, no solo de la seña: el mismo formulario lo usa el
+  // panel, donde nunca hay checkout.
+  const goesToPayment = continuesToPayment && service.requiresDeposit;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -183,8 +203,16 @@ export function CustomerStep({
         {submitError && <ErrorBox message={submitError} />}
 
         <PrimaryButton type="submit" disabled={submitting}>
-          {submitting ? "Reservando…" : "Confirmar reserva"}
+          {submitting ? "Reservando…" : goesToPayment ? "Continuar al pago" : "Confirmar reserva"}
         </PrimaryButton>
+
+        {goesToPayment && (
+          <p className="-mt-1 text-center text-xs text-ashLight">
+            Te llevamos a Mercado Pago para pagar la seña
+            {service.depositAmount ? ` de ${formatMoney(service.depositAmount)}` : ""}. El turno queda
+            reservado mientras tanto.
+          </p>
+        )}
       </form>
 
       <div className="mt-6">

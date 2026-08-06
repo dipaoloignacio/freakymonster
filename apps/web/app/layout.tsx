@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Anton, Cinzel, Oswald, UnifrakturMaguntia } from "next/font/google";
 import { ReservationModalProvider } from "@/components/reservation/ReservationModal";
+import { OG_IMAGE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const cinzel = Cinzel({
@@ -26,8 +27,6 @@ const anton = Anton({
   weight: "400",
   variable: "--font-anton",
 });
-
-const SITE_URL = "https://freakymonster.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -56,14 +55,14 @@ export const metadata: Metadata = {
     title: "Freaky Monster Tattoo Studio — Tatuajes en Mendoza",
     description:
       "Estudio de tatuajes en el microcentro de Mendoza (km0). Blackwork, realismo y old school hechos con precisión quirúrgica.",
-    images: ["/hero.jpg"],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: "Freaky Monster Tattoo Studio — Tatuajes en Mendoza",
     description:
       "Estudio de tatuajes en el microcentro de Mendoza (km0). Blackwork, realismo y old school.",
-    images: ["/hero.jpg"],
+    images: [OG_IMAGE],
   },
 };
 

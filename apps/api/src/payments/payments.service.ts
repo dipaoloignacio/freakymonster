@@ -15,6 +15,28 @@ import { EmailService, AppointmentForEmail } from '../notifications/email.servic
  */
 const GIFT_CARD_REFERENCE_PREFIX = 'gift-card:';
 
+/**
+ * Si el error de la API de Mercado Pago es definitivo (el pago no existe y no
+ * va a existir) o transitorio (red, 5xx). Los definitivos se descartan
+ * devolviendo 200 para que MP deje de reintentar; los transitorios se
+ * re-lanzan para que reintente.
+ *
+ * Hay que mirar dos formas distintas porque el SDK no normaliza: un id
+ * numérico inexistente vuelve como { status: 404, error: 'not_found' }, y uno
+ * con formato inválido como { error: 'resource not found' } SIN status. La
+ * segunda se nos escapó en la primera versión de este chequeo y seguía
+ * devolviendo 500.
+ */
+function isPermanentMpLookupError(error: unknown): boolean {
+  const { status, error: errorCode } = (error ?? {}) as { status?: number; error?: string };
+
+  if (typeof status === 'number') {
+    return status >= 400 && status < 500;
+  }
+
+  return typeof errorCode === 'string' && errorCode.toLowerCase().includes('not found');
+}
+
 function formatArs(amount: Prisma.Decimal): string {
   return Number(amount).toLocaleString('es-AR', {
     style: 'currency',
@@ -33,6 +55,25 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const FRONTEND_BASE_URL = IS_PRODUCTION
   ? 'https://freakymonster.dipaoloproyects.space'
   : 'http://localhost:3000';
+
+/**
+ * A dónde avisa Mercado Pago que un pago cambió de estado. Es la MISMA base
+ * que las back_urls porque en producción Nginx sirve el front y la API bajo un
+ * solo dominio (/api/* va al backend).
+ *
+ * Va con la preferencia y no solo configurado en el panel de Mercado Pago:
+ * así el webhook viaja con cada pago, en vez de depender de una config global
+ * que no está versionada y que nadie recuerda haber tocado. Sin esto, ningún
+ * pago se confirma solo — el turno queda PENDING hasta que alguien lo note y
+ * dispare el webhook a mano.
+ *
+ * Solo en producción, por el mismo motivo que auto_return: Mercado Pago exige
+ * una URL pública y rechaza localhost, y aunque la aceptara no podría
+ * alcanzarla desde afuera. En dev el webhook se prueba haciéndole POST a mano.
+ */
+const PAYMENT_WEBHOOK_OPTIONS = IS_PRODUCTION
+  ? { notification_url: `${FRONTEND_BASE_URL}/api/payments/webhook` }
+  : {};
 
 @Injectable()
 export class PaymentsService {
@@ -88,6 +129,7 @@ export class PaymentsService {
         // producción. En dev, hay que clickear "volver al sitio" a mano
         // en la pantalla de MP; no hay forma de evitarlo con localhost.
         ...(IS_PRODUCTION ? { auto_return: 'approved' as const } : {}),
+        ...PAYMENT_WEBHOOK_OPTIONS,
       },
     });
 
@@ -133,6 +175,9 @@ export class PaymentsService {
         // Ver el comentario de createPaymentPreference(): MP rechaza
         // auto_return si las back_urls no son públicas, así que en dev no va.
         ...(IS_PRODUCTION ? { auto_return: 'approved' as const } : {}),
+        // La gift card tiene el mismo problema que el turno: sin esto, el
+        // código no se emite hasta que alguien dispare el webhook a mano.
+        ...PAYMENT_WEBHOOK_OPTIONS,
       },
     });
 
@@ -147,7 +192,40 @@ export class PaymentsService {
    */
   async handlePaymentNotification(paymentId: string): Promise<void> {
     const paymentClient = new Payment(this.mpConfig);
-    const payment = await paymentClient.get({ id: paymentId });
+
+    // Consultar el pago es lo primero que puede fallar, y no todos los fallos
+    // se tratan igual:
+    //
+    //  - 4xx (el pago no existe, o no es de esta cuenta): reintentar no lo va
+    //    a hacer aparecer. Se loguea y se corta devolviendo 200, para que MP
+    //    deje de reintentar algo que nunca va a cambiar. Es el caso del botón
+    //    "Simular notificación" del panel, que manda un id inventado.
+    //  - Cualquier otra cosa (red caída, 5xx de MP): sí es transitorio, así
+    //    que se re-lanza. El 500 resultante es deseado: hace que MP reintente
+    //    más tarde, que es exactamente lo que queremos para no perder un pago
+    //    real por un problema momentáneo.
+    //
+    // Sin este try/catch, un id inexistente tiraba una excepción sin manejar y
+    // Nest respondía 500 — el SDK de Mercado Pago no lanza Error ni
+    // HttpException sino un objeto plano con `status`, así que no hay forma de
+    // que Nest lo traduzca solo.
+    let payment: Awaited<ReturnType<typeof paymentClient.get>>;
+    try {
+      payment = await paymentClient.get({ id: paymentId });
+    } catch (error) {
+      if (isPermanentMpLookupError(error)) {
+        this.logger.warn(
+          `Webhook MP: el pago ${paymentId} no existe o no es accesible. Se descarta sin reintentar.`,
+        );
+        return;
+      }
+      this.logger.error(
+        `Webhook MP: no se pudo consultar el pago ${paymentId} (${
+          error instanceof Error ? error.message : JSON.stringify(error)
+        }). Se devuelve error para que MP reintente.`,
+      );
+      throw error;
+    }
 
     this.logger.log(
       `Webhook MP: payment=${paymentId} status=${payment.status} external_reference=${payment.external_reference}`,

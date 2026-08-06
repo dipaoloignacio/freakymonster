@@ -40,6 +40,10 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       NOTIFICATION_FROM_EMAIL: ${NOTIFICATION_FROM_EMAIL}
       STUDIO_NOTIFICATION_EMAIL: ${STUDIO_NOTIFICATION_EMAIL}
+      # La clave del panel de admin. Sin esto AdminGuard compara contra
+      # undefined y rechaza TODO /api/admin/*, así que el panel queda
+      # inaccesible en producción aunque el código de la URL sea el correcto.
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
       PORT: 3001
     ports:
       - "127.0.0.1:${API_PORT:-3301}:3001"

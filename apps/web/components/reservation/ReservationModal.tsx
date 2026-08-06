@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import dynamic from "next/dynamic";
 import {
   ApiError,
   createAppointment,
@@ -23,9 +24,21 @@ import { ArtistStep } from "./ArtistStep";
 import { ServiceStep } from "./ServiceStep";
 import { DateStep } from "./DateStep";
 import { TimeStep } from "./TimeStep";
-import { CustomerStep, type CustomerFormData } from "./CustomerStep";
+import type { CustomerFormData } from "./CustomerStep";
 import { SuccessStep } from "./SuccessStep";
 import { ErrorBox, PrimaryButton, Spinner } from "./shared";
+
+/**
+ * Carga diferida porque CustomerStep arrastra la metadata de
+ * libphonenumber-js (~150 KB) para validar el teléfono. Es el último paso del
+ * wizard: importarlo estático le sumaba ese peso al First Load JS de la home,
+ * la página más visitada, para algo que la mayoría de las visitas nunca abre.
+ * Cuando el usuario llega a este paso ya navegó cuatro pantallas, tiempo de
+ * sobra para que el chunk baje.
+ */
+const CustomerStep = dynamic(() => import("./CustomerStep").then((m) => m.CustomerStep), {
+  loading: () => <Spinner label="Cargando…" />,
+});
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import type { CountryCode } from "libphonenumber-js/max";
 import type { Artist, ArtistServiceOption } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { formatDateLong, formatSlotTime } from "@/lib/mendozaTime";
+import { DEFAULT_COUNTRY, phoneToE164 } from "@/lib/phone";
 import { BackLink, ErrorBox, PrimaryButton, StepEyebrow } from "./shared";
-
-const PHONE_PATTERN = /^[+\d][\d\s-]{6,19}$/;
+import { PhoneField, phoneValidationError } from "./PhoneField";
 
 export interface CustomerFormData {
   customerName: string;
@@ -38,6 +39,7 @@ export function CustomerStep({
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_COUNTRY);
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -52,16 +54,26 @@ export function CustomerStep({
       setFieldError("Falta tu nombre.");
       return;
     }
-    if (!PHONE_PATTERN.test(phone.trim())) {
-      setFieldError("El teléfono no tiene un formato válido.");
+
+    // El número viaja en E.164; el backend lo vuelve a normalizar y validar
+    // por su cuenta (ver CreateAppointmentDto), esto es para no dejar que se
+    // mande siquiera un turno con un teléfono que ya sabemos que no sirve.
+    const e164Phone = phoneToE164(phone, phoneCountry);
+    if (!e164Phone) {
+      setFieldError(
+        phone.trim()
+          ? "Ese número no parece válido para el país elegido."
+          : "Falta tu teléfono."
+      );
       return;
     }
+
     setFieldError(null);
     setSubmitting(true);
     try {
       await onSubmit({
         customerName: name.trim(),
-        customerPhone: phone.trim(),
+        customerPhone: e164Phone,
         customerEmail: email.trim() || undefined,
         notes: notes.trim() || undefined,
       });
@@ -101,17 +113,13 @@ export function CustomerStep({
           />
         </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-ash">Teléfono *</span>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+54 9 261 555-0000"
-            required
-            className="clip-notch-sm border-2 border-plum bg-ink px-4 py-2.5 text-sm text-bone outline-none focus:border-gore"
-          />
-        </label>
+        <PhoneField
+          value={phone}
+          onChange={setPhone}
+          country={phoneCountry}
+          onCountryChange={setPhoneCountry}
+          error={phoneValidationError(phone, phoneCountry)}
+        />
 
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-semibold uppercase tracking-wide text-ash">Email (opcional)</span>

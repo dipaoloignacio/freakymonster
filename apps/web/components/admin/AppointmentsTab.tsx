@@ -15,7 +15,7 @@ import {
   isoToMendozaDateString,
   todayDateString,
 } from "@/lib/mendozaTime";
-import { whatsAppUrl } from "@/lib/phone";
+import { formatPhoneForDisplay, whatsAppUrl } from "@/lib/phone";
 import { ErrorBox, Spinner } from "@/components/reservation/shared";
 import { RescheduleModal } from "./RescheduleModal";
 import { NewAppointmentModal } from "./NewAppointmentModal";
@@ -39,15 +39,17 @@ const DEPOSIT_LABEL: Record<string, string> = {
 };
 
 /**
- * El teléfono es link a WhatsApp solo si se lo puede normalizar a un número
- * argentino válido (ver lib/phone.ts). Si no, se muestra como texto plano:
- * mandar a WhatsApp a un número mal armado es peor que no ofrecer el link.
+ * Los teléfonos se guardan en E.164 (+5492617199005), que es correcto pero
+ * ilegible de un vistazo: se muestra formateado. El link a WhatsApp solo se
+ * ofrece si el número se puede usar — mandar a un número mal armado es peor
+ * que no ofrecer el link. Ver lib/phone.ts.
  */
 function CustomerPhone({ phone }: { phone: string }) {
   const url = whatsAppUrl(phone);
+  const display = formatPhoneForDisplay(phone);
 
   if (!url) {
-    return <div className="text-xs text-ashLight">{phone}</div>;
+    return <div className="text-xs text-ashLight">{display}</div>;
   }
 
   return (
@@ -58,7 +60,7 @@ function CustomerPhone({ phone }: { phone: string }) {
       title="Abrir chat de WhatsApp"
       className="text-xs text-toxic underline decoration-dotted underline-offset-2 transition-colors hover:text-bone"
     >
-      {phone}
+      {display}
     </a>
   );
 }

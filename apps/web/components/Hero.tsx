@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Reveal } from "@/components/motion/Reveal";
 import { useReservationModal } from "@/components/reservation/ReservationModal";
 import { whatsappConsultaUrl } from "@/data/content";
 
@@ -19,14 +20,20 @@ export default function Hero() {
       <div className="mb-[18px] text-xs font-semibold uppercase tracking-[4px] text-toxic">
         Tinta que no se olvida
       </div>
-      <Image
-        src="/logo.png"
-        alt="Freaky Monster Tattoo Studio"
-        width={1080}
-        height={605}
-        className="h-auto w-[clamp(260px,38vw,560px)] animate-flicker drop-shadow-[0_0_40px_rgba(0,0,0,0.6)]"
-        priority
-      />
+      {/* El fade de Motion corre una sola vez sobre este wrapper; el
+          animate-flicker sigue en la <img> de adentro con su loop propio. Van
+          en elementos distintos a propósito: los dos animan opacity, y en el
+          mismo nodo el keyframe del flicker pisaría el fade a mitad de camino. */}
+      <Reveal>
+        <Image
+          src="/logo.png"
+          alt="Freaky Monster Tattoo Studio"
+          width={1080}
+          height={605}
+          className="h-auto w-[clamp(260px,38vw,560px)] animate-flicker drop-shadow-[0_0_40px_rgba(0,0,0,0.6)]"
+          priority
+        />
+      </Reveal>
       <p className="mx-auto mt-[26px] max-w-[620px] text-[clamp(16px,2vw,20px)] font-medium tracking-[0.3px] text-ashLight">
         No venimos a decorar piel. Venimos a marcarla para siempre. Blackwork,
         realismo y old school hechos con precisión quirúrgica y actitud de

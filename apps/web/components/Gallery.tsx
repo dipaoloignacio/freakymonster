@@ -6,6 +6,7 @@ import useEmblaCarousel from "embla-carousel-react";
 import AutoScroll from "embla-carousel-auto-scroll";
 import { gallery } from "@/data/content";
 import NoiseHeading from "./NoiseHeading";
+import { Reveal, STAGGER_STEP } from "@/components/motion/Reveal";
 import FourPointStar from "./doodles/FourPointStar";
 import HandUnderline from "./doodles/HandUnderline";
 
@@ -192,9 +193,20 @@ export default function Gallery() {
           <HandUnderline className="mx-auto mt-2 h-3 w-[140px] text-gore" />
         </div>
       </div>
+      {/* La cascada va por FILA y no por imagen, a diferencia de la sección de
+          artistas. Las fotos viven adentro de un carrusel con auto-scroll y
+          loop: entran y salen del viewport todo el tiempo, así que un
+          whileInView por celda dispararía a destiempo mientras el carrusel
+          avanza —y sobre los clones que Embla genera para el loop—, dando una
+          cascada aleatoria en vez de una entrada. Animando la fila, la sección
+          aparece una vez y el carrusel sigue su ritmo por su cuenta. */}
       <div className="flex flex-col gap-3.5">
-        <CarouselRow pieces={row1} ctaAfterIndex={1} reducedMotion={reducedMotion} />
-        <CarouselRow pieces={row2} reverse reducedMotion={reducedMotion} />
+        <Reveal>
+          <CarouselRow pieces={row1} ctaAfterIndex={1} reducedMotion={reducedMotion} />
+        </Reveal>
+        <Reveal delay={STAGGER_STEP}>
+          <CarouselRow pieces={row2} reverse reducedMotion={reducedMotion} />
+        </Reveal>
       </div>
     </section>
   );

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { resolveAssetUrl, type Artist } from "@/lib/api";
 import NoiseHeading from "./NoiseHeading";
+import { Reveal, STAGGER_STEP } from "@/components/motion/Reveal";
 
 /**
  * El markup de la sección #artistas. Está separado del componente que trae
@@ -25,12 +26,15 @@ export default function ArtistsSection({ artists }: { artists: Artist[] }) {
           </NoiseHeading>
         </div>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-6">
-          {artists.map((artist) => {
+          {artists.map((artist, index) => {
             const imageUrl = resolveAssetUrl(artist.imageUrl);
 
             return (
-              <div
+              // La cascada va por índice de tarjeta: entran una atrás de otra
+              // en vez de todas juntas.
+              <Reveal
                 key={artist.id}
+                delay={index * STAGGER_STEP}
                 className="border-2 border-plum bg-panel p-5 text-center"
               >
                 <div className="relative mb-4 aspect-square overflow-hidden border-2 border-plum">
@@ -54,7 +58,7 @@ export default function ArtistsSection({ artists }: { artists: Artist[] }) {
                 <div className="text-xs font-semibold uppercase tracking-[1.5px] text-toxic">
                   {artist.specialties.join(" / ")}
                 </div>
-              </div>
+              </Reveal>
             );
           })}
         </div>

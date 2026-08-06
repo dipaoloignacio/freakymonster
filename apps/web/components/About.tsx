@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Reveal } from "@/components/motion/Reveal";
 import NoiseHeading from "./NoiseHeading";
 
 export default function About() {
@@ -30,7 +31,7 @@ export default function About() {
             llevar puesto.
           </p>
         </div>
-        <div className="relative aspect-[4/3] overflow-hidden rotate-[-0.6deg] border-2 border-plum">
+        <Reveal className="relative aspect-[4/3] overflow-hidden rotate-[-0.6deg] border-2 border-plum">
           <Image
             src="/about.jpg"
             alt="Interior del estudio"
@@ -38,7 +39,7 @@ export default function About() {
             sizes="(min-width: 1024px) 45vw, 90vw"
             className="object-cover"
           />
-        </div>
+        </Reveal>
       </div>
     </section>
   );

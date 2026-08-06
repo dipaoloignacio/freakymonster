@@ -13,7 +13,7 @@ import {
   type AdminArtist,
   type AdminService,
 } from "@/lib/adminApi";
-import { ErrorBox, Spinner } from "@/components/reservation/shared";
+import { ErrorBox, Spinner, BUTTON_SPINNER, SpinnerCircle } from "@/components/reservation/shared";
 
 type FormTarget = "new" | AdminService;
 
@@ -469,9 +469,9 @@ function ServiceForm({
           <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ash">
             Tatuadores que lo ofrecen
             {artists === null ? (
-              <p className="border-2 border-plum bg-ink px-3 py-2 text-sm normal-case tracking-normal text-ashLight">
-                Cargando tatuadores…
-              </p>
+              <div className="border-2 border-plum bg-ink px-3 py-2">
+                <Spinner label="Cargando tatuadores…" size="sm" />
+              </div>
             ) : artists.length === 0 ? (
               <p className="border-2 border-plum bg-ink px-3 py-2 text-sm normal-case tracking-normal text-ashLight">
                 No hay tatuadores cargados todavía.
@@ -529,8 +529,9 @@ function ServiceForm({
           <button
             type="submit"
             disabled={submitting}
-            className="clip-notch-sm bg-gore px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink disabled:opacity-40"
+            className="clip-notch-sm inline-flex items-center justify-center gap-2 bg-gore px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink disabled:opacity-40"
           >
+            {submitting && <SpinnerCircle className={BUTTON_SPINNER} />}
             {submitting ? "Guardando…" : "Guardar"}
           </button>
         </div>

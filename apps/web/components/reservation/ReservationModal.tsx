@@ -344,7 +344,7 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
                   onClose={closeModal}
                 />
               )}
-              {step === "redirecting" && <Spinner label="Redirigiendo a Mercado Pago…" />}
+              {step === "redirecting" && <Spinner label="Te llevamos a Mercado Pago…" />}
               {step === "paymentError" && (
                 <div>
                   <ErrorBox message="Tu reserva se creó, pero no pudimos iniciar el pago de la seña. Contactanos por WhatsApp para coordinarlo." />

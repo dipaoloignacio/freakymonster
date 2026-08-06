@@ -6,7 +6,7 @@ import type { Artist, ArtistServiceOption } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { formatDateLong, formatSlotTime } from "@/lib/mendozaTime";
 import { DEFAULT_COUNTRY, phoneToE164 } from "@/lib/phone";
-import { BackLink, ErrorBox, PrimaryButton, StepEyebrow } from "./shared";
+import { BackLink, BUTTON_SPINNER, ErrorBox, PrimaryButton, SpinnerCircle, StepEyebrow } from "./shared";
 import { PhoneField, phoneValidationError } from "./PhoneField";
 
 // Mismo criterio que el @IsEmail del backend: algo@algo.algo. No se busca
@@ -203,6 +203,7 @@ export function CustomerStep({
         {submitError && <ErrorBox message={submitError} />}
 
         <PrimaryButton type="submit" disabled={submitting}>
+          {submitting && <SpinnerCircle className={BUTTON_SPINNER} />}
           {submitting ? "Reservando…" : goesToPayment ? "Continuar al pago" : "Confirmar reserva"}
         </PrimaryButton>
 

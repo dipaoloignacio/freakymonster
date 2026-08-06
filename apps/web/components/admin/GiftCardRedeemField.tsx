@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import { fetchAdminGiftCardByCode, type AdminGiftCardLookup } from "@/lib/adminApi";
+import { BUTTON_SPINNER, SpinnerCircle } from "@/components/reservation/shared";
 
 function formatMoney(amount: string): string {
   const value = Number(amount);
@@ -86,8 +87,9 @@ export function GiftCardRedeemField({
           type="button"
           onClick={handleVerify}
           disabled={checking || !input.trim()}
-          className="border-2 border-toxic px-4 py-2 text-xs font-bold uppercase tracking-wide text-toxic transition-colors hover:bg-toxic hover:text-ink disabled:opacity-40"
+          className="inline-flex items-center justify-center gap-2 border-2 border-toxic px-4 py-2 text-xs font-bold uppercase tracking-wide text-toxic transition-colors hover:bg-toxic hover:text-ink disabled:opacity-40"
         >
+          {checking && <SpinnerCircle className={BUTTON_SPINNER} />}
           {checking ? "Verificando…" : "Verificar"}
         </button>
       </div>

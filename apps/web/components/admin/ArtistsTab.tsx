@@ -17,7 +17,7 @@ import {
   type AdminService,
   type WeeklyAvailabilityWindow,
 } from "@/lib/adminApi";
-import { ErrorBox, Spinner } from "@/components/reservation/shared";
+import { ErrorBox, Spinner, BUTTON_SPINNER, SpinnerCircle } from "@/components/reservation/shared";
 import { formatDuration } from "./ServicesTab";
 
 type FormTarget = "new" | AdminArtist;
@@ -631,9 +631,9 @@ function ArtistForm({
           <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ash">
             Servicios que ofrece
             {services === null ? (
-              <p className="border-2 border-plum bg-ink px-3 py-2 text-sm normal-case tracking-normal text-ashLight">
-                Cargando servicios…
-              </p>
+              <div className="border-2 border-plum bg-ink px-3 py-2">
+                <Spinner label="Cargando servicios…" size="sm" />
+              </div>
             ) : services.length === 0 ? (
               <p className="border-2 border-plum bg-ink px-3 py-2 text-sm normal-case tracking-normal text-ashLight">
                 No hay servicios cargados todavía. Creá alguno en la pestaña Servicios.
@@ -711,8 +711,9 @@ function ArtistForm({
           <button
             type="submit"
             disabled={submitting}
-            className="clip-notch-sm bg-gore px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink disabled:opacity-40"
+            className="clip-notch-sm inline-flex items-center justify-center gap-2 bg-gore px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink disabled:opacity-40"
           >
+            {submitting && <SpinnerCircle className={BUTTON_SPINNER} />}
             {submitting ? "Guardando…" : "Guardar"}
           </button>
         </div>

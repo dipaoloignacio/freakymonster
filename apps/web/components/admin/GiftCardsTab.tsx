@@ -8,7 +8,7 @@ import {
   updateAdminGiftCardTier,
   type AdminGiftCardTier,
 } from "@/lib/adminApi";
-import { ErrorBox, Spinner } from "@/components/reservation/shared";
+import { ErrorBox, Spinner, BUTTON_SPINNER, SpinnerCircle } from "@/components/reservation/shared";
 
 type FormTarget = "new" | AdminGiftCardTier;
 
@@ -262,8 +262,9 @@ function GiftCardTierForm({
           <button
             type="submit"
             disabled={submitting}
-            className="clip-notch-sm bg-gore px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink disabled:opacity-40"
+            className="clip-notch-sm inline-flex items-center justify-center gap-2 bg-gore px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink disabled:opacity-40"
           >
+            {submitting && <SpinnerCircle className={BUTTON_SPINNER} />}
             {submitting ? "Guardando…" : "Guardar"}
           </button>
         </div>

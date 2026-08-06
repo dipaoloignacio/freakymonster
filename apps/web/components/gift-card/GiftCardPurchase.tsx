@@ -10,7 +10,7 @@ import {
   type GiftCardTier,
 } from "@/lib/api";
 import { whatsappConsultaUrl } from "@/data/content";
-import { ErrorBox, PrimaryButton, Spinner, StepEyebrow } from "@/components/reservation/shared";
+import { BUTTON_SPINNER, ErrorBox, PrimaryButton, Spinner, SpinnerCircle, StepEyebrow } from "@/components/reservation/shared";
 
 type Step = "amount" | "data" | "redirecting";
 
@@ -273,6 +273,7 @@ export function GiftCardPurchase() {
                   </div>
 
                   <PrimaryButton type="submit" disabled={submitting}>
+                    {submitting && <SpinnerCircle className={BUTTON_SPINNER} />}
                     {submitting ? "Preparando el pago…" : "Pagar con Mercado Pago"}
                   </PrimaryButton>
                 </form>

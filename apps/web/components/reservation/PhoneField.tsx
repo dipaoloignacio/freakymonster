@@ -85,11 +85,19 @@ export function PhoneField({
           <span aria-hidden="true" className="text-ash">
             ▾
           </span>
+          {/* Los colores van también en las <option>, no solo en el <select>:
+              el select está en opacity-0 (lo visible es la etiqueta de arriba),
+              pero la lista desplegada la pinta el navegador con SUS valores por
+              defecto —fondo blanco— mientras el texto hereda el bone claro del
+              sitio, y queda blanco sobre blanco. El bg del <select> cubre a
+              Firefox, que toma de ahí el fondo de la lista; el de las <option>
+              cubre a Chrome/Edge. Safari ignora ambos y usa el dropdown del
+              sistema: limitación conocida de WebKit, no hay cómo forzarlo. */}
           <select
             aria-label="Código de país"
             value={country}
             onChange={(e) => onCountryChange(e.target.value as CountryCode)}
-            className="absolute inset-0 cursor-pointer opacity-0"
+            className="absolute inset-0 cursor-pointer bg-panel text-bone opacity-0 [&>option]:bg-panel [&>option]:text-bone"
           >
             {countryOptions.map((option) => (
               <option key={option.country} value={option.country}>

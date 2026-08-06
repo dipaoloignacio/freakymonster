@@ -20,6 +20,16 @@ COPY apps/api/package.json apps/api/package.json
 # porque en producción todo vive bajo el mismo dominio detrás de Nginx.
 ARG NEXT_PUBLIC_API_URL=/api
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# También en tiempo de build, aunque sea una URL de runtime: Next evalúa
+# rewrites() al compilar y hornea el destino en routes-manifest.json. Como env
+# del contenedor NO alcanza — la variable existe pero el rewrite ya quedó
+# escrito con el fallback de dev (http://localhost:3001), que adentro del
+# contenedor web no apunta a ningún lado y hace que el optimizador de
+# next/image devuelva 400 para las fotos subidas desde el panel.
+# El default es el nombre del servicio en la red de compose (ver
+# docker-compose.prod.yml).
+ARG API_INTERNAL_URL=http://api:3001/api
+ENV API_INTERNAL_URL=${API_INTERNAL_URL}
 RUN npm run build -w apps/web
 
 # En un monorepo con npm workspaces, `output: standalone` anida el resultado

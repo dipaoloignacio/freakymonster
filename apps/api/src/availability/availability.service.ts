@@ -146,6 +146,12 @@ export class AvailabilityService {
     busyAppointments: AppointmentRange[],
   ): string[] {
     const availableSlots: string[] = [];
+    // Un horario que ya pasó no es reservable: ni el de un día anterior ni el
+    // de hoy más temprano que ahora. Filtrar acá y no en getAvailableSlots()
+    // hace que valga también para el calendario del mes, que usa esta misma
+    // función — así un día enteramente pasado queda sin slots y el calendario
+    // lo muestra deshabilitado, en vez de dejar entrar a una grilla vacía.
+    const now = Date.now();
 
     for (const window of windows) {
       const windowStart = parseTimeToMinutes(window.startTime);
@@ -154,6 +160,10 @@ export class AvailabilityService {
       for (let slotStart = windowStart; slotStart + durationMinutes <= windowEnd; slotStart += durationMinutes) {
         const candidateStart = localCalendarTimeToUtc(date, minutesToHHMM(slotStart));
         const candidateEnd = localCalendarTimeToUtc(date, minutesToHHMM(slotStart + durationMinutes));
+
+        if (candidateStart.getTime() <= now) {
+          continue;
+        }
 
         if (!this.hasOverlap(candidateStart, candidateEnd, busyAppointments)) {
           availableSlots.push(candidateStart.toISOString());

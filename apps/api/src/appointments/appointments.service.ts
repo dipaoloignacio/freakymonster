@@ -1,19 +1,22 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AppointmentStatus, DepositStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from '../availability/availability.service';
+import { EmailService } from '../notifications/email.service';
 import { localCalendarTimeToUtc } from '../common/timezone';
-import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { CreateAppointmentInput } from './dto/appointment-base.dto';
 
 const SLOT_TAKEN_MESSAGE = 'Este horario ya no está disponible';
 
 export interface CreateAppointmentOptions {
   /**
-   * Estado inicial. El wizard público crea PENDING (falta que el cliente
-   * pague o que el estudio confirme); el panel crea CONFIRMED, porque un
-   * turno cargado a mano ya viene acordado por teléfono/WhatsApp.
+   * Estado inicial fijo. Lo usa el panel, que crea CONFIRMED siempre: un turno
+   * cargado a mano ya viene acordado por teléfono/WhatsApp.
+   *
+   * Si no viene —el caso del wizard público— el estado se deriva de si el
+   * servicio pide seña: ver la lógica en create().
    */
-  status: AppointmentStatus;
+  status?: AppointmentStatus;
   /**
    * Si el turno tiene que vencer a los 15 minutos cuando el servicio pide
    * seña. Solo aplica al flujo público, donde ese plazo es la ventana para
@@ -39,15 +42,17 @@ export interface CreateAppointmentOptions {
 }
 
 const PUBLIC_BOOKING: CreateAppointmentOptions = {
-  status: AppointmentStatus.PENDING,
   applyDepositExpiry: true,
 };
 
 @Injectable()
 export class AppointmentsService {
+  private readonly logger = new Logger(AppointmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly availabilityService: AvailabilityService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -57,7 +62,7 @@ export class AppointmentsService {
    * check-then-insert sería la forma más fácil de terminar con dos criterios
    * distintos de doble reserva.
    */
-  async create(dto: CreateAppointmentDto, options: CreateAppointmentOptions = PUBLIC_BOOKING) {
+  async create(dto: CreateAppointmentInput, options: CreateAppointmentOptions = PUBLIC_BOOKING) {
     const { artistId, serviceId, date, startTime, customerName, customerPhone, customerEmail, notes } = dto;
 
     // Reusa TODA la validación de reglas de negocio + la grilla de slots que
@@ -77,11 +82,20 @@ export class AppointmentsService {
     const candidateEnd = new Date(candidateStart.getTime() + service!.durationMinutes * 60_000);
 
     // Solo los servicios que requieren seña expiran (le damos 15 minutos al
-    // cliente para pagar antes de liberar el slot). Si no requiere seña, el
-    // turno queda PENDING sin presión de tiempo — alguien del estudio lo
-    // confirma a mano después.
+    // cliente para pagar antes de liberar el slot).
     const expiresAt =
       options.applyDepositExpiry && service!.requiresDeposit ? new Date(Date.now() + 15 * 60_000) : null;
+
+    // Sin `status` explícito (wizard público), el estado sale de la seña:
+    //  - Con seña: PENDING. Falta el pago, y hasta que el webhook de Mercado
+    //    Pago lo confirme el turno no está cerrado.
+    //  - Sin seña: CONFIRMED directo. No hay nada que esperar — dejarlo
+    //    PENDING obligaba a alguien del estudio a confirmarlo a mano, y
+    //    mientras tanto el cliente veía su reserva como "sin confirmar" sin
+    //    que hubiera nada que él pudiera hacer al respecto.
+    const status =
+      options.status ??
+      (service!.requiresDeposit ? AppointmentStatus.PENDING : AppointmentStatus.CONFIRMED);
 
     // Entre el chequeo de arriba y este INSERT puede colarse otra reserva
     // (dos clientes pidiendo el mismo slot casi al mismo tiempo). Por eso el
@@ -95,8 +109,9 @@ export class AppointmentsService {
     // bloquear — las dos transacciones podrían commitear igual (doble
     // reserva). Por eso el nivel mínimo válido para este patrón
     // check-then-insert es SERIALIZABLE.
+    let appointment: { id: string };
     try {
-      return await this.prisma.$transaction(
+      appointment = await this.prisma.$transaction(
         async (tx) => {
           const busyAppointments = await this.availabilityService.findBusyAppointments(tx, artistId, date);
 
@@ -114,7 +129,7 @@ export class AppointmentsService {
               notes,
               startTime: candidateStart,
               endTime: candidateEnd,
-              status: options.status,
+              status,
               // NONE salvo que quien llama diga lo contrario: la seña la marca
               // el webhook de Mercado Pago (flujo público) o la coordina el
               // estudio por afuera (alta manual). El único caso que nace
@@ -139,6 +154,43 @@ export class AppointmentsService {
         throw new ConflictException(SLOT_TAKEN_MESSAGE);
       }
       throw error;
+    }
+
+    // Un turno que nace CONFIRMED por no requerir seña no pasa por el webhook
+    // de Mercado Pago, que es de donde salen los mails del flujo público: sin
+    // esto, el cliente no recibe nada y —más importante— el estudio tampoco se
+    // entera de que entró una reserva. Antes ese aviso lo daba, de hecho, el
+    // paso manual de confirmarla en el panel.
+    //
+    // Solo cuando el estado lo derivamos nosotros (`options.status` ausente =
+    // wizard público): el alta del panel pasa un estado explícito y manda su
+    // propio mail, así que entrar acá le duplicaría el envío.
+    if (options.status === undefined && status === AppointmentStatus.CONFIRMED) {
+      await this.notifyAutoConfirmed(appointment.id);
+    }
+
+    return appointment;
+  }
+
+  /**
+   * Los dos avisos de un turno auto-confirmado. Fuera de la transacción y
+   * envuelto: el turno ya está creado y un email caído no puede deshacerlo
+   * — mismo criterio que PaymentsService y AdminService.
+   */
+  private async notifyAutoConfirmed(appointmentId: string): Promise<void> {
+    try {
+      const appointment = await this.prisma.appointment.findUniqueOrThrow({
+        where: { id: appointmentId },
+        include: { artist: true, service: true },
+      });
+      await this.emailService.sendCustomerConfirmation(appointment);
+      await this.emailService.sendStudioNotification(appointment);
+    } catch (error) {
+      this.logger.error(
+        `Error inesperado enviando los mails del turno auto-confirmado ${appointmentId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 }

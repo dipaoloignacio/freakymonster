@@ -9,6 +9,11 @@ import { DEFAULT_COUNTRY, phoneToE164 } from "@/lib/phone";
 import { BackLink, ErrorBox, PrimaryButton, StepEyebrow } from "./shared";
 import { PhoneField, phoneValidationError } from "./PhoneField";
 
+// Mismo criterio que el @IsEmail del backend: algo@algo.algo. No se busca
+// validar el estándar completo —eso solo lo confirma mandar un mail— sino
+// atajar el typo obvio antes de crear el turno.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export interface CustomerFormData {
   customerName: string;
   customerPhone: string;
@@ -25,6 +30,7 @@ export function CustomerStep({
   onBack,
   stepInfo,
   title = "Tus datos",
+  emailRequired = true,
 }: {
   artist: Artist;
   service: ArtistServiceOption;
@@ -36,6 +42,14 @@ export function CustomerStep({
    * poder reusarlo fuera del wizard (ver el alta manual del panel). */
   stepInfo?: { step: number; total: number };
   title?: string;
+  /**
+   * El wizard público exige el mail: es por donde sale la confirmación y el
+   * único canal por escrito que queda con ese cliente. El alta del panel lo
+   * deja opcional, porque el estudio toma reservas por teléfono donde muchas
+   * veces no se da — y el backend acompaña esa diferencia con dos DTOs
+   * distintos (CreateAppointmentDto vs CreateAdminAppointmentDto).
+   */
+  emailRequired?: boolean;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -51,7 +65,7 @@ export function CustomerStep({
     setSubmitError(null);
 
     if (!name.trim()) {
-      setFieldError("Falta tu nombre.");
+      setFieldError("Falta tu nombre completo.");
       return;
     }
 
@@ -68,13 +82,27 @@ export function CustomerStep({
       return;
     }
 
+    // Cuando es obligatorio, se valida antes de mandar para no crear una
+    // reserva que ya sabemos que el backend va a rechazar. Cuando es opcional
+    // igual se valida el formato si escribieron algo: un mail con un typo no
+    // sirve para nada y es mejor avisarlo acá.
+    const trimmedEmail = email.trim();
+    if (emailRequired && !trimmedEmail) {
+      setFieldError("Falta tu email.");
+      return;
+    }
+    if (trimmedEmail && !EMAIL_PATTERN.test(trimmedEmail)) {
+      setFieldError("Ese email no parece válido.");
+      return;
+    }
+
     setFieldError(null);
     setSubmitting(true);
     try {
       await onSubmit({
         customerName: name.trim(),
         customerPhone: e164Phone,
-        customerEmail: email.trim() || undefined,
+        customerEmail: trimmedEmail || undefined,
         notes: notes.trim() || undefined,
       });
     } catch (err) {
@@ -102,7 +130,9 @@ export function CustomerStep({
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-ash">Nombre *</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-ash">
+            Nombre completo *
+          </span>
           <input
             type="text"
             value={name}
@@ -122,13 +152,19 @@ export function CustomerStep({
         />
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-ash">Email (opcional)</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-ash">
+            {emailRequired ? "Email *" : "Email (opcional)"}
+          </span>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            required={emailRequired}
             className="clip-notch-sm border-2 border-plum bg-ink px-4 py-2.5 text-sm text-bone outline-none focus:border-gore"
           />
+          {emailRequired && (
+            <span className="text-xs text-ashLight">Ahí te mandamos la confirmación del turno.</span>
+          )}
         </label>
 
         <label className="flex flex-col gap-1.5">

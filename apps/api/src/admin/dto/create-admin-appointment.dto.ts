@@ -1,5 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { CreateAppointmentDto } from '../../appointments/dto/create-appointment.dto';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { AppointmentBaseDto } from '../../appointments/dto/appointment-base.dto';
 
 /**
  * El alta manual del panel acepta todo lo del alta pública más el canje de una
@@ -10,7 +10,17 @@ import { CreateAppointmentDto } from '../../appointments/dto/create-appointment.
  * aceptaría un giftCardCode, y cualquiera podría quemar una card desde el
  * wizard. Canjear es, por ahora, una operación del estudio.
  */
-export class CreateAdminAppointmentDto extends CreateAppointmentDto {
+export class CreateAdminAppointmentDto extends AppointmentBaseDto {
+  /**
+   * Opcional, a diferencia del alta pública: el estudio toma reservas por
+   * teléfono y por WhatsApp, donde el mail muchas veces no se da. Exigirlo
+   * obligaría a inventarlo, que es peor que no tenerlo. El formato se valida
+   * igual cuando viene.
+   */
+  @IsOptional()
+  @IsEmail()
+  customerEmail?: string;
+
   // Se normaliza al validarlo contra la base (mayúsculas, guiones opcionales):
   // ver canonicalizeGiftCardCode.
   @IsOptional()

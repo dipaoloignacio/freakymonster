@@ -253,6 +253,8 @@ export function NewAppointmentModal({
               onSubmit={handleSubmit}
               onBack={() => setStep("time")}
               title="Datos del cliente"
+              // El estudio toma reservas por teléfono: el mail puede no estar.
+              emailRequired={false}
             />
           </>
         )}

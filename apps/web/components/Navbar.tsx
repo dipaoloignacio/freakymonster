@@ -37,6 +37,18 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
+          {/* Ruta real, no ancla como el resto del menú, pero <a> igual que
+              ellos y no next/link: importar Link acá metía el router de Next en
+              el bundle de la home (+9 KB de First Load JS) a cambio de un
+              prefetch que no vale la pena para una página que casi nadie abre.
+              Se muestra como link y no como segundo botón para no competir con
+              el CTA de reservar. */}
+          <a
+            href="/gift-card"
+            className="text-sm font-semibold uppercase tracking-[1.5px] text-toxic no-underline transition-colors hover:text-bone"
+          >
+            Gift card
+          </a>
           <button
             type="button"
             onClick={openModal}
@@ -81,6 +93,13 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
+          <a
+            href="/gift-card"
+            onClick={() => setOpen(false)}
+            className="py-2 text-sm font-semibold uppercase tracking-[1.5px] text-toxic no-underline transition-colors hover:text-bone"
+          >
+            Gift card
+          </a>
           <button
             type="button"
             onClick={() => {

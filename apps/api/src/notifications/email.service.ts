@@ -1,8 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Resend } from 'resend';
-import { formatLocalDateTime } from '../common/timezone';
+import { formatLocalDate, formatLocalDateTime } from '../common/timezone';
 
 const STUDIO_WHATSAPP = '+54 9 261 719-9005';
+
+export interface GiftCardForEmail {
+  id: string;
+  /// Ya emitida: el código y el vencimiento existen recién cuando se pagó.
+  code: string | null;
+  amount: Prisma.Decimal | number | string;
+  expiresAt: Date | null;
+  purchaserName: string;
+  purchaserEmail: string;
+  recipientName: string | null;
+  recipientEmail: string | null;
+  message: string | null;
+}
 
 export interface AppointmentForEmail {
   id: string;
@@ -55,6 +69,31 @@ export class EmailService {
       to: this.studioEmail,
       subject: `Nueva reserva confirmada — ${appointment.customerName}`,
       html: this.buildStudioEmailHtml(appointment, formatLocalDateTime(appointment.startTime)),
+    });
+  }
+
+  /**
+   * El email que entrega la gift card, con el código.
+   *
+   * Va a `recipientEmail` si la compraron para regalar, y al comprador si no.
+   * El texto también cambia según eso: recibir "compraste una gift card"
+   * cuando en realidad te la regalaron es desconcertante, y el mensaje del
+   * comprador (la dedicatoria) solo tiene sentido leerlo del lado de quien lo
+   * recibe.
+   *
+   * No tira excepciones hacia afuera, igual que los otros dos: el pago ya está
+   * cobrado y la card ya está emitida — un email caído no puede deshacer eso.
+   */
+  async sendGiftCardIssued(giftCard: GiftCardForEmail): Promise<void> {
+    const isGift = Boolean(giftCard.recipientEmail || giftCard.recipientName);
+    const to = giftCard.recipientEmail ?? giftCard.purchaserEmail;
+
+    await this.trySend({
+      to,
+      subject: isGift
+        ? `${giftCard.purchaserName} te regaló una gift card de Freaky Monster`
+        : 'Tu gift card de Freaky Monster Tattoo Studio',
+      html: this.buildGiftCardEmailHtml(giftCard, isGift),
     });
   }
 
@@ -111,6 +150,61 @@ export class EmailService {
         </ul>
         <p>Cualquier consulta, escribinos por WhatsApp al ${STUDIO_WHATSAPP}.</p>
         <p>¡Te esperamos!</p>
+      `,
+    );
+  }
+
+  /**
+   * El código es lo único que el destinatario necesita de este mail, así que
+   * va grande, en monoespaciada y aislado en su propio bloque: se lo va a
+   * copiar a mano o leer en voz alta al llegar al estudio.
+   */
+  private buildGiftCardEmailHtml(giftCard: GiftCardForEmail, isGift: boolean): string {
+    const amountLabel = Number(giftCard.amount).toLocaleString('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      maximumFractionDigits: 0,
+    });
+    const recipientName = giftCard.recipientName ?? '';
+
+    const intro = isGift
+      ? `
+        <p>${recipientName ? `Hola ${recipientName},` : 'Hola,'}</p>
+        <p><strong>${giftCard.purchaserName}</strong> te regaló una gift card de
+        <strong>Freaky Monster Tattoo Studio</strong> por ${amountLabel}.</p>
+      `
+      : `
+        <p>Hola ${giftCard.purchaserName},</p>
+        <p>Tu gift card de <strong>Freaky Monster Tattoo Studio</strong> por ${amountLabel} ya está lista.</p>
+      `;
+
+    // La dedicatoria solo se muestra cuando el mail va a un tercero: mostrarle
+    // al comprador el texto que él mismo escribió no aporta nada.
+    const dedication =
+      isGift && giftCard.message
+        ? `
+          <blockquote style="margin: 20px 0; padding: 12px 16px; border-left: 4px solid #1a1a1a; font-style: italic;">
+            ${giftCard.message}
+          </blockquote>
+        `
+        : '';
+
+    const expiryLine = giftCard.expiresAt
+      ? `<p>Válida hasta el <strong>${formatLocalDate(giftCard.expiresAt)}</strong>.</p>`
+      : '';
+
+    return this.buildEmailHtml(
+      isGift ? '¡Te regalaron un tatuaje!' : 'Tu gift card está lista',
+      `
+        ${intro}
+        ${dedication}
+        <p style="margin-bottom: 6px;">Este es el código:</p>
+        <div style="margin: 0 0 20px; padding: 16px; border: 2px dashed #1a1a1a; text-align: center;
+                    font-family: monospace; font-size: 28px; font-weight: bold; letter-spacing: 2px;">
+          ${giftCard.code ?? ''}
+        </div>
+        ${expiryLine}
+        <p>Para usarla, escribinos por WhatsApp al ${STUDIO_WHATSAPP} con el código y coordinamos el turno.</p>
       `,
     );
   }

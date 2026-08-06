@@ -3,6 +3,7 @@ import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from '../availability/availability.service';
 import { EmailService } from '../notifications/email.service';
+import { GiftCardsService } from '../gift-cards/gift-cards.service';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
@@ -15,8 +16,13 @@ describe('PaymentsService', () => {
         { provide: AvailabilityService, useValue: {} },
         {
           provide: EmailService,
-          useValue: { sendCustomerConfirmation: jest.fn(), sendStudioNotification: jest.fn() },
+          useValue: {
+            sendCustomerConfirmation: jest.fn(),
+            sendStudioNotification: jest.fn(),
+            sendGiftCardIssued: jest.fn(),
+          },
         },
+        { provide: GiftCardsService, useValue: { issueAfterPayment: jest.fn() } },
       ],
     }).compile();
 

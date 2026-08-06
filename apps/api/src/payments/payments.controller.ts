@@ -10,6 +10,13 @@ export class PaymentsController {
     return this.paymentsService.createPaymentPreference(id);
   }
 
+  // Misma forma que la de turnos, pero cobra el total de la gift card y su
+  // external_reference lleva el prefijo que el webhook usa para distinguirlas.
+  @Post('gift-cards/:id/payment-preference')
+  createGiftCardPaymentPreference(@Param('id') id: string) {
+    return this.paymentsService.createGiftCardPaymentPreference(id);
+  }
+
   // Mercado Pago manda una notificación liviana (tipo de evento + id), no el
   // detalle completo, y el formato varía según cómo esté configurado el
   // webhook: a veces viene en el body, a veces en query params. Siempre

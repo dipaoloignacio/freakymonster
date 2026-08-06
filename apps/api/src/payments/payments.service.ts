@@ -1,11 +1,27 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
-import { AppointmentStatus, DepositStatus, Prisma } from '@prisma/client';
+import { AppointmentStatus, DepositStatus, GiftCardStatus, Prisma } from '@prisma/client';
 import { DateTime } from 'luxon';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from '../availability/availability.service';
+import { GiftCardsService } from '../gift-cards/gift-cards.service';
 import { STUDIO_TIMEZONE } from '../common/timezone';
 import { EmailService, AppointmentForEmail } from '../notifications/email.service';
+
+/**
+ * Marca en el external_reference que lo pagado es una gift card y no un turno
+ * — es el único dato nuestro que vuelve en el webhook. Ver
+ * handlePaymentNotification().
+ */
+const GIFT_CARD_REFERENCE_PREFIX = 'gift-card:';
+
+function formatArs(amount: Prisma.Decimal): string {
+  return Number(amount).toLocaleString('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  });
+}
 
 // Igual que el CORS condicional de main.ts: en local, `apps/web` corre en
 // localhost:3000, así que las back_urls tienen que apuntar ahí para poder
@@ -27,6 +43,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly availabilityService: AvailabilityService,
     private readonly emailService: EmailService,
+    private readonly giftCardsService: GiftCardsService,
   ) {
     this.mpConfig = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! });
   }
@@ -78,6 +95,51 @@ export class PaymentsService {
   }
 
   /**
+   * Misma mecánica que createPaymentPreference(), con tres diferencias:
+   * el importe es el total de la gift card (no una seña), el
+   * external_reference lleva el prefijo que el webhook usa para distinguirla
+   * de un turno, y las back_urls apuntan a las páginas de gift card, porque
+   * "tu seña fue recibida" no es lo que corresponde leer acá.
+   */
+  async createGiftCardPaymentPreference(giftCardId: string) {
+    const giftCard = await this.prisma.giftCard.findUnique({ where: { id: giftCardId } });
+    if (!giftCard) {
+      throw new NotFoundException('Gift card no encontrada');
+    }
+    if (giftCard.status !== GiftCardStatus.PENDING) {
+      // Ya se pagó: cobrarla de nuevo generaría un segundo código para la
+      // misma card, o un cobro sin nada que emitir.
+      throw new BadRequestException('Esta gift card ya fue emitida');
+    }
+
+    const preference = new Preference(this.mpConfig);
+    const result = await preference.create({
+      body: {
+        items: [
+          {
+            id: giftCard.id,
+            title: `Gift card Freaky Monster Tattoo Studio — ${formatArs(giftCard.amount)}`,
+            quantity: 1,
+            unit_price: Number(giftCard.amount),
+            currency_id: 'ARS',
+          },
+        ],
+        external_reference: `${GIFT_CARD_REFERENCE_PREFIX}${giftCard.id}`,
+        back_urls: {
+          success: `${FRONTEND_BASE_URL}/gift-card/confirmado`,
+          pending: `${FRONTEND_BASE_URL}/gift-card/pendiente`,
+          failure: `${FRONTEND_BASE_URL}/gift-card/error`,
+        },
+        // Ver el comentario de createPaymentPreference(): MP rechaza
+        // auto_return si las back_urls no son públicas, así que en dev no va.
+        ...(IS_PRODUCTION ? { auto_return: 'approved' as const } : {}),
+      },
+    });
+
+    return { initPoint: result.init_point, preferenceId: result.id };
+  }
+
+  /**
    * Se llama desde POST /payments/webhook. `paymentId` viene de la
    * notificación liviana de Mercado Pago — nunca confiamos en el resto del
    * payload del webhook, siempre volvemos a consultar el pago real contra
@@ -96,11 +158,26 @@ export class PaymentsService {
       return;
     }
 
-    const appointmentId = payment.external_reference;
-    if (!appointmentId) {
-      this.logger.error(`Pago ${paymentId} approved sin external_reference — no se puede vincular a un turno.`);
+    const externalReference = payment.external_reference;
+    if (!externalReference) {
+      this.logger.error(`Pago ${paymentId} approved sin external_reference — no se puede vincular a nada.`);
       return;
     }
+
+    // Dos cosas distintas se pagan por el mismo webhook. Las preferencias de
+    // gift card marcan su external_reference con un prefijo; las de turno
+    // mandan el id pelado. El prefijo va del lado nuevo a propósito: cambiar
+    // el formato de los turnos rompería cualquier pago de turno que ya esté
+    // en vuelo cuando se despliegue esto.
+    if (externalReference.startsWith(GIFT_CARD_REFERENCE_PREFIX)) {
+      await this.issueGiftCardFromPayment(
+        externalReference.slice(GIFT_CARD_REFERENCE_PREFIX.length),
+        String(paymentId),
+      );
+      return;
+    }
+
+    const appointmentId = externalReference;
 
     let confirmedAppointment: AppointmentForEmail | null;
     try {
@@ -138,6 +215,42 @@ export class PaymentsService {
           }`,
         );
       }
+    }
+  }
+
+  /**
+   * Emite la gift card y manda el email con el código.
+   *
+   * No necesita la transacción Serializable que sí usa el turno: ahí el
+   * aislamiento existe porque dos pagos podrían pelearse por el mismo horario.
+   * Acá no hay recurso compartido — cada card es suya — y la idempotencia ante
+   * los reintentos de MP la da el chequeo de estado dentro de
+   * GiftCardsService.issueAfterPayment().
+   */
+  private async issueGiftCardFromPayment(giftCardId: string, paymentId: string): Promise<void> {
+    const issued = await this.giftCardsService.issueAfterPayment(giftCardId, paymentId);
+
+    if (!issued) {
+      // O no existe (external_reference basura) o ya estaba emitida (reintento
+      // del webhook). Lo segundo es normal y esperado; lo primero requiere
+      // mirar, por eso se loguea con el id.
+      this.logger.warn(`Pago ${paymentId}: la gift card ${giftCardId} no existe o ya estaba emitida.`);
+      return;
+    }
+
+    this.logger.log(`Gift card ${issued.id} emitida con código ${issued.code} (pago ${paymentId}).`);
+
+    // Igual que con los turnos: el email va después de tocar la base y
+    // envuelto, para que una caída de Resend no vuelva a intentar emitir la
+    // card ni haga fallar el webhook (MP reintentaría y ya está emitida).
+    try {
+      await this.emailService.sendGiftCardIssued(issued);
+    } catch (error) {
+      this.logger.error(
+        `Error inesperado enviando el email de la gift card ${issued.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 

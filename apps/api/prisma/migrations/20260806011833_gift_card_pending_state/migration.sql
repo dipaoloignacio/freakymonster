@@ -1,0 +1,7 @@
+-- AlterEnum
+ALTER TYPE "GiftCardStatus" ADD VALUE 'PENDING';
+
+-- AlterTable
+ALTER TABLE "GiftCard" ALTER COLUMN "code" DROP NOT NULL,
+ALTER COLUMN "status" SET DEFAULT 'PENDING',
+ALTER COLUMN "expiresAt" DROP NOT NULL;

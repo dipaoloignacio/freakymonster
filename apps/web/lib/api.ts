@@ -153,3 +153,63 @@ export async function createPaymentPreference(appointmentId: string): Promise<Pa
 
   return response.json();
 }
+
+// --- Gift cards ---------------------------------------------------------
+
+export interface GiftCardTier {
+  id: string;
+  /** Decimal de Prisma serializado: llega como string. */
+  amount: string;
+  label: string | null;
+}
+
+export interface CreateGiftCardPayload {
+  tierId: string;
+  purchaserName: string;
+  purchaserEmail: string;
+  recipientName?: string;
+  recipientEmail?: string;
+  message?: string;
+}
+
+export interface GiftCard {
+  id: string;
+  amount: string;
+  status: "PENDING" | "ACTIVE" | "REDEEMED" | "EXPIRED";
+}
+
+/** Solo los montos vigentes — el catálogo público. */
+export function fetchGiftCardTiers(): Promise<GiftCardTier[]> {
+  return request<GiftCardTier[]>("/gift-card-tiers");
+}
+
+/**
+ * Crea la gift card en PENDING, antes de pagar. El código y la vigencia los
+ * pone el backend cuando Mercado Pago confirma el pago: hasta entonces la card
+ * no sirve para nada, así que abandonar el checkout no deja nada canjeable.
+ */
+export async function createGiftCard(payload: CreateGiftCardPayload): Promise<GiftCard> {
+  const response = await fetch(`${API_BASE_URL}/gift-cards`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await extractErrorMessage(response));
+  }
+
+  return response.json();
+}
+
+export async function createGiftCardPaymentPreference(giftCardId: string): Promise<PaymentPreference> {
+  const response = await fetch(`${API_BASE_URL}/gift-cards/${giftCardId}/payment-preference`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await extractErrorMessage(response));
+  }
+
+  return response.json();
+}

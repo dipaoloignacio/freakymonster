@@ -98,3 +98,16 @@ export function formatLocalDateTime(date: Date): string {
     .setLocale('es')
     .toFormat("cccc d 'de' LLLL 'de' yyyy, HH:mm 'hs'");
 }
+
+/**
+ * Igual que formatLocalDateTime pero sin la hora, para fechas donde el horario
+ * no significa nada (el vencimiento de una gift card, por ejemplo: vence ese
+ * día, no a las 19:42).
+ * Ej: "18 de agosto de 2026".
+ */
+export function formatLocalDate(date: Date): string {
+  return DateTime.fromJSDate(date, { zone: 'utc' })
+    .setZone(STUDIO_TIMEZONE)
+    .setLocale('es')
+    .toFormat("d 'de' LLLL 'de' yyyy");
+}

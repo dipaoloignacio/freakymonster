@@ -114,6 +114,11 @@ model GiftCardTier {
 }
 
 enum GiftCardStatus {
+  /// Creada, esperando que se confirme el pago. Es el estado inicial: la fila
+  /// existe desde antes de pagar porque el external_reference de Mercado Pago
+  /// tiene que apuntar a algo. Una card PENDING no tiene código ni sirve para
+  /// nada — recién al confirmarse el pago pasa a ACTIVE.
+  PENDING
   ACTIVE
   REDEEMED
   EXPIRED
@@ -125,14 +130,19 @@ model GiftCard {
   /// Formato FM-XXXX-XXXX con un alfabeto sin caracteres confundibles — se
   /// dicta por teléfono y se escribe a mano. Ver generateGiftCardCode() en
   /// src/common/gift-card-code.ts. @unique ya crea el índice.
-  code String @unique
+  ///
+  /// null mientras está PENDING: el código se genera recién cuando el pago se
+  /// confirma. Que no exista antes es la garantía más fuerte de que una card
+  /// impaga no se puede canjear — más que cualquier chequeo de estado, porque
+  /// no hay nada que tipear. En Postgres el @unique permite varios NULL.
+  code String? @unique
 
   /// Snapshot del monto al momento de la compra, NO una FK a GiftCardTier:
   /// el estudio puede cambiarle el precio a un tier mañana, y esta card ya se
   /// pagó a un valor fijo. Guardar la referencia haría que su valor mutara
   /// solo, retroactivamente.
   amount Decimal        @db.Decimal(10, 2)
-  status GiftCardStatus @default(ACTIVE)
+  status GiftCardStatus @default(PENDING)
 
   purchaserName  String
   purchaserEmail String
@@ -146,9 +156,12 @@ model GiftCard {
   /// una card emitida a mano por el estudio no tiene pago online detrás.
   mpPaymentId String?
 
-  /// Se calcula al comprar (GIFT_CARD_VALIDITY_MONTHS desde la compra), no lo
-  /// pone la base: el default vive en código para poder cambiarlo sin migrar.
-  expiresAt DateTime
+  /// Se calcula al CONFIRMARSE EL PAGO (GIFT_CARD_VALIDITY_MONTHS desde ese
+  /// momento), no lo pone la base: el default vive en código para poder
+  /// cambiarlo sin migrar. null mientras está PENDING — la vigencia empieza a
+  /// correr cuando la card existe de verdad, no cuando alguien abrió el
+  /// checkout y lo abandonó.
+  expiresAt DateTime?
 
   redeemedAt              DateTime?
   redeemedByAppointmentId String?

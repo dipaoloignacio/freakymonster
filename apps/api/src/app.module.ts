@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { GiftCardsModule } from './gift-cards/gift-cards.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ArtistsModule } from './artists/artists.module';
@@ -19,6 +20,7 @@ import { AdminModule } from './admin/admin.module';
     AvailabilityModule,
     AppointmentsModule,
     PaymentsModule,
+    GiftCardsModule,
     NotificationsModule,
     ArtistsModule,
     AdminModule,

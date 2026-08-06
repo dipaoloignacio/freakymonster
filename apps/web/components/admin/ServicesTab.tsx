@@ -120,7 +120,7 @@ export function ServicesTab({ code }: { code: string }) {
       )}
 
       {!loading && !error && services && services.length > 0 && (
-        <div className="overflow-x-auto border-2 border-plum">
+        <div className="custom-scrollbar overflow-x-auto border-2 border-plum">
           <table className="w-full min-w-[720px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b-2 border-plum bg-panel text-xs font-semibold uppercase tracking-wide text-ash">
@@ -372,7 +372,7 @@ function ServiceForm({
     >
       <form
         onSubmit={handleSubmit}
-        className="clip-notch max-h-[90vh] w-full max-w-md overflow-y-auto border-2 border-plum bg-panel p-6"
+        className="custom-scrollbar clip-notch max-h-[90vh] w-full max-w-md overflow-y-auto border-2 border-plum bg-panel p-6"
       >
         <h3 className="mb-5 font-display text-lg text-bone">
           {isNew ? "Nuevo servicio" : `Editar ${target.name}`}

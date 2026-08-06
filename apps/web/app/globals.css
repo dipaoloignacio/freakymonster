@@ -47,3 +47,49 @@ body {
     #0f0d0b 10px 20px
   );
 }
+
+/* Scrollbar con la paleta del sitio, para los contenedores con scroll propio
+   (el wizard de reserva, los modales y las tablas del panel). El del navegador
+   —gris y con relieve— es lo único que rompe el look en esos lugares.
+   Se aplica solo donde se pide con la clase, no globalmente: el scroll de la
+   página entera es del sistema operativo y ahí conviene dejar el nativo, que
+   es el que la gente reconoce.
+
+   Los colores van con oklch() literal y no con las variables de Tailwind
+   porque estas reglas viven fuera de @layer y no pasan por el motor de
+   Tailwind: son los mismos valores que plum, gore y panel en
+   tailwind.config.ts. */
+.custom-scrollbar {
+  /* Firefox: no tiene pseudo-elementos de scrollbar, solo estas dos. */
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.34 0.07 300 / 0.7) transparent;
+}
+
+/* Chrome, Edge y Safari. */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 9px;
+  height: 9px; /* la horizontal, para las tablas del panel */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: oklch(0.34 0.07 300 / 0.7);
+  border-radius: 999px;
+  /* El borde transparente deja aire a los costados: sin él la barrita toca el
+     borde del contenedor y se ve pegoteada. background-clip evita que el
+     color pinte ese margen. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.65 0.24 350 / 0.85); /* gore: mismo acento que los CTAs */
+}
+
+/* La esquina donde se cruzan las dos barras, visible en las tablas. */
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}

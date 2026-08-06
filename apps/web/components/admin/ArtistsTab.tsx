@@ -509,7 +509,7 @@ function ArtistForm({
     >
       <form
         onSubmit={handleSubmit}
-        className="clip-notch max-h-[90vh] w-full max-w-md overflow-y-auto border-2 border-plum bg-panel p-6"
+        className="custom-scrollbar clip-notch max-h-[90vh] w-full max-w-md overflow-y-auto border-2 border-plum bg-panel p-6"
       >
         <h3 className="mb-5 font-display text-lg text-bone">
           {isNew ? "Nuevo tatuador" : `Editar a ${target.name}`}

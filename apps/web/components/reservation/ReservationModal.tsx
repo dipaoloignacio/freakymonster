@@ -291,7 +291,7 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5">
+            <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5">
               {step === "artist" && (
                 <ArtistStep
                   artists={artists}

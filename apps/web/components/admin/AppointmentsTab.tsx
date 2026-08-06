@@ -217,7 +217,7 @@ export function AppointmentsTab({ code }: { code: string }) {
       )}
 
       {!loading && !error && appointments && appointments.length > 0 && (
-        <div className="overflow-x-auto border-2 border-plum">
+        <div className="custom-scrollbar overflow-x-auto border-2 border-plum">
           <table className="w-full min-w-[720px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b-2 border-plum bg-panel text-xs font-semibold uppercase tracking-wide text-ash">

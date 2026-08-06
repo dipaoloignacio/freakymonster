@@ -135,7 +135,7 @@ export function NewAppointmentModal({
       className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-6"
       onClick={handleBackdropClick}
     >
-      <div className="clip-notch max-h-[90vh] w-full max-w-md overflow-y-auto border-2 border-plum bg-panel p-6">
+      <div className="custom-scrollbar clip-notch max-h-[90vh] w-full max-w-md overflow-y-auto border-2 border-plum bg-panel p-6">
         <h3 className="mb-1 font-display text-lg text-bone">Nuevo turno</h3>
         <p className="mb-5 text-xs text-ashLight">
           Para reservas tomadas por teléfono o WhatsApp. Queda confirmado directamente.
@@ -255,6 +255,9 @@ export function NewAppointmentModal({
               title="Datos del cliente"
               // El estudio toma reservas por teléfono: el mail puede no estar.
               emailRequired={false}
+              // El alta del panel nunca cobra: el turno se crea confirmado y la
+              // seña, si el servicio la pide, la coordina el estudio aparte.
+              continuesToPayment={false}
             />
           </>
         )}

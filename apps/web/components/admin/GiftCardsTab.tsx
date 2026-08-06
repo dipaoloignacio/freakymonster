@@ -73,7 +73,7 @@ export function GiftCardsTab({ code }: { code: string }) {
       )}
 
       {!loading && !error && tiers && tiers.length > 0 && (
-        <div className="overflow-x-auto border-2 border-plum">
+        <div className="custom-scrollbar overflow-x-auto border-2 border-plum">
           <table className="w-full min-w-[520px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b-2 border-plum bg-panel text-xs font-semibold uppercase tracking-wide text-ash">
@@ -195,7 +195,7 @@ function GiftCardTierForm({
     >
       <form
         onSubmit={handleSubmit}
-        className="clip-notch max-h-[90vh] w-full max-w-md overflow-y-auto border-2 border-plum bg-panel p-6"
+        className="custom-scrollbar clip-notch max-h-[90vh] w-full max-w-md overflow-y-auto border-2 border-plum bg-panel p-6"
       >
         <h3 className="mb-5 font-display text-lg text-bone">
           {isNew ? "Nuevo monto de gift card" : `Editar ${formatMoney(target.amount)}`}

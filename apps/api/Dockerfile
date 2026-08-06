@@ -34,8 +34,13 @@ COPY --from=builder /repo/node_modules/@prisma/client ./node_modules/@prisma/cli
 COPY --from=builder /repo/apps/api/dist apps/api/dist
 COPY --from=builder /repo/apps/api/prisma apps/api/prisma
 COPY --from=builder /repo/apps/api/prisma.config.ts apps/api/prisma.config.ts
+COPY apps/api/docker-entrypoint.sh apps/api/docker-entrypoint.sh
+RUN chmod +x apps/api/docker-entrypoint.sh
 
 EXPOSE 3001
 ENV PORT=3001
+# El entrypoint aplica las migraciones pendientes y después ejecuta el CMD.
+# Si fallan, corta ahí y el contenedor no levanta — ver el script.
+ENTRYPOINT ["/repo/apps/api/docker-entrypoint.sh"]
 # tsconfig.build.json preserva el prefijo src/ en la salida compilada.
 CMD ["node", "apps/api/dist/src/main.js"]

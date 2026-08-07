@@ -10,6 +10,27 @@ export const whatsappPaymentIssueUrl =
   "https://wa.me/5492617199005?text=" +
   encodeURIComponent("Hola! Tuve un problema pagando la seña de mi turno.");
 
+/**
+ * Proporción real (ancho/alto) de cada archivo de public/gallery/, medida sobre
+ * el PNG. El collage la usa para derivar el ancho de cada tarjeta a partir de su
+ * alto, así ninguna foto sale deformada ni recortada a la fuerza.
+ *
+ * Ojo: estas cinco van de 0,71 a 1,00 —de retrato suave a cuadrado—, o sea que
+ * la proporción sola NO alcanza para armar un mosaico irregular. La variedad de
+ * alturas la pone el patrón de variantes en components/Gallery.tsx; esto es lo
+ * que evita que esa variedad deforme las fotos.
+ *
+ * Si se agrega una foto nueva hay que medirla y sumarla acá:
+ *   identify -format "%f %wx%h\n" public/gallery/archivo.png
+ */
+export const galleryAspect: Record<string, number> = {
+  "/gallery/spider.png": 873 / 872,
+  "/gallery/cupcake.png": 871 / 869,
+  "/gallery/medusa.png": 620 / 874,
+  "/gallery/split-face.png": 762 / 866,
+  "/gallery/wolf.png": 653 / 880,
+};
+
 export const gallery: { label: string; image?: string }[] = [
   { label: "Blackwork — antebrazo", image: "/gallery/spider.png" },
   { label: "Realismo — retrato", image: "/gallery/cupcake.png" },

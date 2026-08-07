@@ -27,6 +27,7 @@ import { TimeStep } from "./TimeStep";
 import type { CustomerFormData } from "./CustomerStep";
 import { SuccessStep } from "./SuccessStep";
 import { ErrorBox, PrimaryButton, Spinner } from "./shared";
+import { CTA_SOLID_COMPACT } from "@/lib/buttonStyles";
 
 /**
  * Carga diferida porque CustomerStep arrastra la metadata de
@@ -353,7 +354,7 @@ export function ReservationModalProvider({ children }: { children: ReactNode }) 
                       href={whatsappPaymentIssueUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="clip-notch-sm bg-gore px-6 py-3 text-sm font-bold uppercase tracking-wide text-ink no-underline"
+                      className={`clip-notch-sm bg-gore px-6 py-3 text-sm font-bold uppercase tracking-wide text-ink no-underline ${CTA_SOLID_COMPACT}`}
                     >
                       Escribinos por WhatsApp
                     </a>

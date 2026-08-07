@@ -4,6 +4,13 @@ const config: Config = {
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
+    // lib/ también, porque acá viven clases de Tailwind y no solo lógica: los
+    // estilos compartidos de los CTA (lib/buttonStyles.ts). Tailwind genera CSS
+    // únicamente para las clases que ENCUENTRA en los archivos de esta lista,
+    // así que sin esta línea esas clases no existen — y el fallo es silencioso:
+    // compila, tipa y renderiza igual, solo que el botón no hace nada al pasarle
+    // el mouse. Que es exactamente como se descubrió.
+    "./lib/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {
@@ -42,9 +49,21 @@ const config: Config = {
           "0%": { transform: "translate(0,0)" },
           "100%": { transform: "translate(-4%,-6%)" },
         },
+        // Saltito del ícono de gift card en la barra. La clave está en el
+        // reposo: el movimiento ocupa el último 25% del ciclo y el resto queda
+        // quieto. Un rebote continuo en una barra sticky —presente en TODAS las
+        // pantallas y en todo el scroll— cansa a los dos minutos; así llama la
+        // atención de a ratos y el ojo puede descansar entre una vez y otra.
+        giftNudge: {
+          "0%, 75%, 100%": { transform: "translateY(0)" },
+          "82%": { transform: "translateY(-3px)" },
+          "89%": { transform: "translateY(0)" },
+          "94%": { transform: "translateY(-1.5px)" },
+        },
       },
       animation: {
         flicker: "flicker 6s infinite",
+        giftNudge: "giftNudge 3.2s ease-in-out infinite",
         grain: "grainShift 1.2s steps(2) infinite",
       },
     },

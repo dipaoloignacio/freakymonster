@@ -1,5 +1,6 @@
 import { styles } from "@/data/content";
 import NoiseHeading from "./NoiseHeading";
+import { CTA_OUTLINE_ASH } from "@/lib/buttonStyles";
 
 export default function Styles() {
   return (
@@ -20,7 +21,7 @@ export default function Styles() {
           {styles.map((style) => (
             <div
               key={style.name}
-              className="clip-notch-sm border-2 border-ash px-6 py-3 text-sm font-semibold uppercase tracking-wide text-bone"
+              className={`clip-notch-sm border-2 border-ash px-6 py-3 text-sm font-semibold uppercase tracking-wide text-bone ${CTA_OUTLINE_ASH}`}
             >
               {style.name}
             </div>

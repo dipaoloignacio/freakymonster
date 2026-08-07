@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Reveal } from "@/components/motion/Reveal";
 import { useReservationModal } from "@/components/reservation/ReservationModal";
 import { whatsappConsultaUrl } from "@/data/content";
+import { CTA_OUTLINE_ASH, CTA_SOLID } from "@/lib/buttonStyles";
 
 export default function Hero() {
   const { openModal } = useReservationModal();
@@ -67,7 +68,7 @@ export default function Hero() {
           <button
             type="button"
             onClick={openModal}
-            className="clip-notch bg-gore px-10 py-4 text-[15px] font-bold uppercase tracking-[1.5px] text-ink no-underline shadow-[6px_6px_0_rgba(0,0,0,0.5)]"
+            className={`clip-notch bg-gore px-10 py-4 text-[15px] font-bold uppercase tracking-[1.5px] text-ink no-underline ${CTA_SOLID}`}
           >
             Reservar turno
           </button>
@@ -75,7 +76,7 @@ export default function Hero() {
             href={whatsappConsultaUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="clip-notch flex items-center gap-2 border-2 border-ash px-9 py-[14px] text-[15px] font-bold uppercase tracking-[1.5px] text-bone no-underline"
+            className={`clip-notch flex items-center gap-2 border-2 border-ash px-9 py-[14px] text-[15px] font-bold uppercase tracking-[1.5px] text-bone no-underline ${CTA_OUTLINE_ASH}`}
           >
             <svg
               viewBox="0 0 24 24"

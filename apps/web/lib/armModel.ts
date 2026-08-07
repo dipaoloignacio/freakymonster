@@ -347,6 +347,79 @@ export function maxDesignHeight(metrics: ArmMetrics): number {
 }
 
 /**
+ * Cuánto puede abrazar un diseño alrededor del brazo antes de deformarse feo.
+ *
+ * 120° no es un número redondo elegido de arriba: sale de mirar la golondrina
+ * a varios tamaños sobre la malla. Hasta ~120° se lee como lo que es; a 156°
+ * las alas empiezan a estirarse; a 167° la deformación ya es lo primero que se
+ * ve; pasando 180° no hay proyección posible —es el horizonte del brazo— y el
+ * diseño se parte.
+ *
+ * Es un tope de legibilidad, no geométrico. El límite duro está en 180°.
+ */
+export const MAX_WRAP_RAD = (120 * Math.PI) / 180;
+
+/** Radio más chico del brazo en un tramo. El diseño abraza más donde más fino. */
+function minRadiusOverSpan(metrics: ArmMetrics, yFrom: number, yTo: number): number {
+  let min = Infinity;
+  for (const p of metrics.profile) {
+    if (p.y < yFrom || p.y > yTo) continue;
+    if (p.radius > 0 && p.radius < min) min = p.radius;
+  }
+  // Si el tramo cae entre dos muestras del perfil, se usa el radio del centro.
+  return Number.isFinite(min) ? min : radiusAt(metrics, (yFrom + yTo) / 2);
+}
+
+/**
+ * Alto máximo de diseño para no pasar de MAX_WRAP_RAD en ESTA posición.
+ *
+ * Reemplaza al tope geométrico fijo, que medía el hueco muñeca–codo. Ese hueco
+ * casi nunca es la restricción real: un diseño no se rompe por largo, se rompe
+ * por vuelta alrededor del brazo. Medido sobre esta malla, el ancho que mantiene
+ * el abrazo en ~120° va de 6 cm cerca de la muñeca a 10 cm cerca del codo —muy
+ * lejos de los 37 cm que permitía el tope viejo.
+ *
+ * Depende de tres cosas y por eso hay que recalcularlo cuando cambia cualquiera:
+ *
+ * - la POSICIÓN, porque el antebrazo se ensancha del doble hacia el codo y los
+ *   mismos centímetros abrazan mucho menos ahí;
+ * - el ASPECT del diseño, porque lo que abraza es el ANCHO y el slider controla
+ *   el alto: con la misma regla, una daga 1:2 puede ser el doble de alta que una
+ *   golondrina cuadrada;
+ * - el GIRO, porque un diseño rotado 90° abraza el brazo con su alto.
+ *
+ * La dependencia es circular —el alto define el tramo de brazo que ocupa, y ese
+ * tramo define el radio mínimo que a su vez limita el alto—, así que se resuelve
+ * por punto fijo. Converge en dos o tres vueltas porque el radio cambia despacio.
+ */
+export function maxHeightForWrap(
+  metrics: ArmMetrics,
+  y: number,
+  aspect: number,
+  spin: number
+): number {
+  const cs = Math.abs(Math.cos(spin));
+  const sn = Math.abs(Math.sin(spin));
+
+  // Extensión del rectángulo girado sobre cada eje, en función del alto.
+  // Alrededor del brazo manda `across`; a lo largo del brazo manda `along`.
+  const across = aspect * cs + sn;
+  const along = aspect * sn + cs;
+  if (across < 1e-6) return maxDesignHeight(metrics);
+
+  let h = maxDesignHeight(metrics);
+  for (let i = 0; i < 6; i++) {
+    const halfSpan = (h * along) / 2;
+    const r = minRadiusOverSpan(metrics, y - halfSpan, y + halfSpan);
+    const next = (MAX_WRAP_RAD * r) / across;
+    if (Math.abs(next - h) < 1e-4) { h = next; break; }
+    h = next;
+  }
+
+  return Math.min(h, maxDesignHeight(metrics));
+}
+
+/**
  * Punto de la superficie del brazo a una altura y un ángulo dados.
  *
  * Tira un rayo desde AFUERA hacia el eje, no desde el eje hacia afuera. Desde

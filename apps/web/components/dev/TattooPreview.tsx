@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Decal, OrbitControls, useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
@@ -10,6 +10,7 @@ import {
   decalOrientation,
   measureFootprint,
   maxDesignHeight,
+  maxHeightForWrap,
   placementRange,
   prepareArm,
   surfacePoint,
@@ -19,8 +20,12 @@ import {
 } from "@/lib/armModel";
 
 import { designs, type TattooDesign } from "@/data/designs";
+import { AssetErrorBoundary } from "./AssetErrorBoundary";
 
 const MODEL_URL = "/models/arms_female.web.glb";
+
+/** Más chico que esto no se lee ni en la pantalla ni en la piel. */
+const MIN_HEIGHT_CM = 3;
 
 /** Lo que mide la huella, más lo que se decidió con esa medición. */
 export type FootprintReport = Footprint & { depth: number; beyondHorizon: boolean; depthCapped: boolean };
@@ -38,26 +43,27 @@ type Controls = {
   spinDeg: number;
 };
 
-function Arm({
-  controls,
-  onMetrics,
-  onPlacementFail,
-  onFootprint,
+/**
+ * El decal, con su textura. Va en su propio componente para que el que puede
+ * fallar sea SOLO éste: useTexture lanza la excepción durante el render, así que
+ * el AssetErrorBoundary tiene que quedar por encima de la llamada, no por encima
+ * del brazo. Si la carga del diseño viviera en <Arm>, un PNG faltante se llevaría
+ * puesta la malla, los sliders y el canvas entero.
+ */
+function ArmDecal({
+  url,
+  placement,
+  width,
+  height,
   debug,
 }: {
-  controls: Controls;
-  onMetrics: (m: ArmMetrics) => void;
-  onPlacementFail: (failed: boolean) => void;
-  onFootprint: (f: FootprintReport) => void;
+  url: string;
+  placement: { position: [number, number, number]; rotation: THREE.Euler; depth: number };
+  width: number;
+  height: number;
   debug: boolean;
 }) {
-  const { scene } = useGLTF(MODEL_URL);
-  const { geometry, material, metrics } = useMemo(
-    () => prepareArm(scene, controls.side),
-    [scene, controls.side]
-  );
-
-  const texture = useTexture(controls.design.image);
+  const texture = useTexture(url);
   useEffect(() => {
     // Sin esto el diseño sale lavado: three asume espacio lineal y una textura
     // de color hay que declararla como sRGB o el negro deja de ser negro.
@@ -65,6 +71,44 @@ function Arm({
     texture.anisotropy = 8;
     texture.needsUpdate = true;
   }, [texture]);
+
+  return (
+    <Decal
+      position={placement.position}
+      rotation={placement.rotation}
+      scale={[width, height, placement.depth]}
+      map={texture}
+      // drei viene con depthTest={false} por defecto, que dibuja el decal
+      // SIEMPRE por encima: el tatuaje se vería a través del brazo al girar
+      // la cámara a la otra cara. Con depthTest activado lo tapa el propio
+      // brazo, y el polygonOffset que drei ya aplica evita el z-fighting.
+      depthTest
+      polygonOffsetFactor={-20}
+      debug={debug}
+    />
+  );
+}
+
+function Arm({
+  controls,
+  onMetrics,
+  onPlacementFail,
+  onFootprint,
+  onDesignError,
+  debug,
+}: {
+  controls: Controls;
+  onMetrics: (m: ArmMetrics) => void;
+  onPlacementFail: (failed: boolean) => void;
+  onFootprint: (f: FootprintReport) => void;
+  onDesignError: (id: string, message: string) => void;
+  debug: boolean;
+}) {
+  const { scene } = useGLTF(MODEL_URL);
+  const { geometry, material, metrics } = useMemo(
+    () => prepareArm(scene, controls.side),
+    [scene, controls.side]
+  );
 
   useEffect(() => onMetrics(metrics), [metrics, onMetrics]);
 
@@ -112,19 +156,23 @@ function Arm({
   return (
     <mesh ref={meshRef} geometry={geometry} material={material}>
       {placement && (
-        <Decal
-          position={placement.position}
-          rotation={placement.rotation}
-          scale={[width, height, placement.depth]}
-          map={texture}
-          // drei viene con depthTest={false} por defecto, que dibuja el decal
-          // SIEMPRE por encima: el tatuaje se vería a través del brazo al girar
-          // la cámara a la otra cara. Con depthTest activado lo tapa el propio
-          // brazo, y el polygonOffset que drei ya aplica evita el z-fighting.
-          depthTest
-          polygonOffsetFactor={-20}
-          debug={debug}
-        />
+        // key por diseño: un ErrorBoundary que ya falló se queda en estado de
+        // error, así que sin remontarlo elegir otro diseño no volvería a
+        // intentar nada.
+        <AssetErrorBoundary
+          key={controls.design.id}
+          onError={(m) => onDesignError(controls.design.id, m)}
+        >
+          <Suspense fallback={null}>
+            <ArmDecal
+              url={controls.design.image}
+              placement={placement}
+              width={width}
+              height={height}
+              debug={debug}
+            />
+          </Suspense>
+        </AssetErrorBoundary>
       )}
     </mesh>
   );
@@ -135,12 +183,14 @@ function Scene({
   onMetrics,
   onPlacementFail,
   onFootprint,
+  onDesignError,
   debug,
 }: {
   controls: Controls;
   onMetrics: (m: ArmMetrics) => void;
   onPlacementFail: (failed: boolean) => void;
   onFootprint: (f: FootprintReport) => void;
+  onDesignError: (id: string, message: string) => void;
   debug: boolean;
 }) {
   return (
@@ -165,7 +215,14 @@ function Scene({
       {/* Contraluz frío: despega el brazo del fondo oscuro sin aclarar la piel. */}
       <directionalLight position={[0, -1, -3]} intensity={0.6} color="#8fb7ff" />
       <Suspense fallback={null}>
-        <Arm controls={controls} onMetrics={onMetrics} onPlacementFail={onPlacementFail} onFootprint={onFootprint} debug={debug} />
+        <Arm
+          controls={controls}
+          onMetrics={onMetrics}
+          onPlacementFail={onPlacementFail}
+          onFootprint={onFootprint}
+          onDesignError={onDesignError}
+          debug={debug}
+        />
       </Suspense>
       <OrbitControls
         makeDefault
@@ -215,6 +272,11 @@ export default function TattooPreview() {
   const [placementFailed, setPlacementFailed] = useState(false);
   const [debug, setDebug] = useState(false);
   const [footprint, setFootprint] = useState<FootprintReport | null>(null);
+  const [broken, setBroken] = useState<Record<string, string>>({});
+
+  const handleDesignError = useCallback((id: string, message: string) => {
+    setBroken((prev) => (prev[id] ? prev : { ...prev, [id]: message }));
+  }, []);
 
   // Los límites salen de la malla, no de números escritos a mano, y dependen del
   // alto del diseño: el límite real es sobre el BORDE del tatuaje, no sobre su
@@ -223,14 +285,29 @@ export default function TattooPreview() {
     if (!metrics) return null;
     const h = heightCm / M_TO_CM;
     const range = placementRange(metrics, h);
+    // El tope de tamaño ya NO es el hueco muñeca–codo: es cuánto puede abrazar
+    // el diseño alrededor del brazo sin deformarse. Se recalcula con la posición
+    // porque el antebrazo casi duplica su grosor hacia el codo, y con el diseño
+    // porque lo que abraza es el ancho y el slider controla el alto.
+    const y = metrics.yWrist + fromWristCm / M_TO_CM;
+    const wrapCap = maxHeightForWrap(metrics, y, design.aspect, (spinDeg * Math.PI) / 180);
     return {
       minCm: (range.min - metrics.yWrist) * M_TO_CM,
       maxCm: (range.max - metrics.yWrist) * M_TO_CM,
-      maxHeightCm: maxDesignHeight(metrics) * M_TO_CM,
+      maxHeightCm: wrapCap * M_TO_CM,
+      geometricMaxCm: maxDesignHeight(metrics) * M_TO_CM,
       lengthCm: metrics.length * M_TO_CM,
       wristToCutCm: (metrics.yCut - metrics.yWrist) * M_TO_CM,
     };
-  }, [metrics, heightCm]);
+  }, [metrics, heightCm, fromWristCm, design.aspect, spinDeg]);
+
+  // Si el tope bajó —porque se movió el diseño a una parte más fina del brazo,
+  // o se cambió a un diseño más ancho— el alto actual puede haber quedado
+  // arriba del máximo. Se recorta.
+  useEffect(() => {
+    if (!limits) return;
+    setHeightCm((v) => Math.min(v, Math.max(limits.maxHeightCm, MIN_HEIGHT_CM)));
+  }, [limits]);
 
   // Si el diseño crece, el rango se achica y la posición actual puede quedar
   // afuera. Se reencuadra sola en vez de dejar el tatuaje pisando el corte.
@@ -259,6 +336,7 @@ export default function TattooPreview() {
               onMetrics={setMetrics}
               onPlacementFail={setPlacementFailed}
               onFootprint={setFootprint}
+              onDesignError={handleDesignError}
               debug={debug}
             />
           </div>
@@ -285,30 +363,42 @@ export default function TattooPreview() {
             <div>
               <div className="mb-2 text-[11px] uppercase tracking-wider text-ash">Diseño</div>
               <div className="grid grid-cols-3 gap-2">
-                {designs.map((d) => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => { setDesign(d); setHeightCm(d.heightCm); }}
-                    className={`clip-notch-sm px-2 py-2 text-[11px] font-bold uppercase ${
-                      design.id === d.id ? "bg-toxic text-ink" : "border-2 border-ash text-bone"
-                    } ${d.placeholder ? "opacity-70" : ""}`}
-                    // Los de relleno se marcan para no confundirlos con flash del
-                    // estudio cuando se muestre esto en una reunión.
-                    title={d.placeholder ? "De relleno, no es flash del estudio" : undefined}
-                  >
-                    {d.label}
-                    {d.placeholder && <span className="ml-1 opacity-60">*</span>}
-                  </button>
-                ))}
+                {designs.map((d) => {
+                  const isBroken = Boolean(broken[d.id]);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => { setDesign(d); setHeightCm(d.heightCm); }}
+                      className={`clip-notch-sm px-2 py-2 text-[11px] font-bold uppercase ${
+                        design.id === d.id ? "bg-toxic text-ink" : "border-2 border-ash text-bone"
+                      } ${d.placeholder ? "opacity-70" : ""} ${
+                        isBroken ? "border-gore text-gore line-through opacity-60" : ""
+                      }`}
+                      // Los de relleno se marcan para no confundirlos con flash
+                      // del estudio cuando se muestre esto en una reunión.
+                      title={
+                        isBroken
+                          ? `No cargó: ${broken[d.id]}`
+                          : d.placeholder
+                            ? "De relleno, no es flash del estudio"
+                            : undefined
+                      }
+                    >
+                      {d.label}
+                      {d.placeholder && !isBroken && <span className="ml-1 opacity-60">*</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {limits && (
               <>
                 <Slider
-                  label="Tamaño" value={heightCm} min={3}
-                  max={Math.floor(limits.maxHeightCm)} step={0.5} unit="cm"
+                  label="Tamaño" value={heightCm} min={MIN_HEIGHT_CM}
+                  max={Math.max(Math.round(limits.maxHeightCm * 10) / 10, MIN_HEIGHT_CM)}
+                  step={0.5} unit="cm"
                   onChange={setHeightCm}
                 />
                 <Slider
@@ -320,6 +410,13 @@ export default function TattooPreview() {
                 <Slider label="Vuelta al brazo" value={aroundDeg} min={-180} max={180} step={5} unit="°" onChange={setAroundDeg} />
                 <Slider label="Giro del diseño" value={spinDeg} min={-180} max={180} step={5} unit="°" onChange={setSpinDeg} />
               </>
+            )}
+
+            {broken[design.id] && (
+              <p className="border-l-2 border-gore pl-3 text-xs text-gore">
+                “{design.label}” no cargó. El resto del previsualizador sigue
+                andando: elegí otro diseño.
+              </p>
             )}
 
             {noRoom && (
@@ -344,7 +441,12 @@ export default function TattooPreview() {
                 <div>largo total: {limits.lengthCm.toFixed(1)} cm</div>
                 <div>muñeca → corte: {limits.wristToCutCm.toFixed(1)} cm</div>
                 <div>rango permitido: {limits.minCm.toFixed(1)} – {limits.maxCm.toFixed(1)} cm</div>
-                <div>alto máx. de diseño: {limits.maxHeightCm.toFixed(1)} cm</div>
+                <div>
+                  alto máx. (120° de abrazo): {limits.maxHeightCm.toFixed(1)} cm
+                </div>
+                <div className="text-ash/60">
+                  (el hueco muñeca–codo daría {limits.geometricMaxCm.toFixed(1)} cm)
+                </div>
                 {footprint && (
                   <>
                     <div className="pt-2 text-toxic">huella del diseño</div>

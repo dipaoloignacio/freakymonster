@@ -2,8 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Resend } from 'resend';
 import { formatLocalDate, formatLocalDateTime } from '../common/timezone';
-
-const STUDIO_WHATSAPP = '+54 9 261 719-9005';
+import {
+  amountBlock,
+  button,
+  codeBlock,
+  dataTable,
+  EMAIL_CONTACT,
+  emailShell,
+  esc,
+  heading,
+  paragraph,
+  quote,
+} from './email-layout';
 
 export interface GiftCardForEmail {
   id: string;
@@ -119,39 +129,35 @@ export class EmailService {
     }
   }
 
-  /** Cascarón común de los dos mails: mismo estilo, distinto contenido. */
-  private buildEmailHtml(heading: string, body: string): string {
-    return `
-      <div style="font-family: sans-serif; line-height: 1.5; color: #1a1a1a;">
-        <h2>${heading}</h2>
-        ${body}
-      </div>
-    `;
-  }
-
-  /** Los datos del turno en sí, idénticos para el cliente y para el estudio.
-   *  Cada destinatario agrega arriba/abajo las filas que solo le sirven a él. */
-  private buildAppointmentRows(appointment: AppointmentForEmail, whenLocal: string): string {
-    return `
-      <li><strong>Tatuador/a:</strong> ${appointment.artist.name}</li>
-      <li><strong>Servicio:</strong> ${appointment.service.name}</li>
-      <li><strong>Fecha y hora:</strong> ${whenLocal} (hora Mendoza)</li>
-    `;
+  /**
+   * Los datos del turno en sí, idénticos para el cliente y para el estudio.
+   * Cada destinatario agrega arriba/abajo las filas que solo le sirven a él.
+   */
+  private buildAppointmentRows(
+    appointment: AppointmentForEmail,
+    whenLocal: string,
+  ): { label: string; value: string }[] {
+    return [
+      { label: 'Tatuador/a', value: appointment.artist.name },
+      { label: 'Servicio', value: appointment.service.name },
+      { label: 'Fecha y hora', value: `${whenLocal} (hora Mendoza)` },
+    ];
   }
 
   private buildCustomerEmailHtml(appointment: AppointmentForEmail, whenLocal: string): string {
-    return this.buildEmailHtml(
-      '¡Turno confirmado!',
-      `
-        <p>Hola ${appointment.customerName},</p>
-        <p>Tu turno en <strong>Freaky Monster Tattoo Studio</strong> quedó confirmado:</p>
-        <ul>
-          ${this.buildAppointmentRows(appointment, whenLocal)}
-        </ul>
-        <p>Cualquier consulta, escribinos por WhatsApp al ${STUDIO_WHATSAPP}.</p>
-        <p>¡Te esperamos!</p>
+    return emailShell({
+      title: 'Turno confirmado',
+      // Lo que se lee en la bandeja al lado del asunto. Se pone la fecha
+      // porque es el dato que uno busca cuando ve el mail en la lista.
+      preheader: `${whenLocal} — con ${appointment.artist.name}`,
+      content: `
+        ${heading('¡Turno confirmado!')}
+        ${paragraph(`Hola ${esc(appointment.customerName)}, tu turno quedó reservado. Te esperamos.`)}
+        ${dataTable(this.buildAppointmentRows(appointment, whenLocal))}
+        ${paragraph('¿Necesitás cambiar algo o tenés una duda? Escribinos y lo resolvemos.')}
+        ${button(EMAIL_CONTACT.whatsappLink, 'Escribinos por WhatsApp')}
       `,
-    );
+    });
   }
 
   /**
@@ -169,56 +175,50 @@ export class EmailService {
 
     const intro = isGift
       ? `
-        <p>${recipientName ? `Hola ${recipientName},` : 'Hola,'}</p>
-        <p><strong>${giftCard.purchaserName}</strong> te regaló una gift card de
-        <strong>Freaky Monster Tattoo Studio</strong> por ${amountLabel}.</p>
+        ${paragraph(`${recipientName ? `Hola ${esc(recipientName)},` : 'Hola,'}`)}
+        ${paragraph(`<strong>${esc(giftCard.purchaserName)}</strong> te regaló una gift card de Freaky Monster Tattoo Studio. Usala en el diseño que quieras, con el tatuador que quieras.`)}
       `
       : `
-        <p>Hola ${giftCard.purchaserName},</p>
-        <p>Tu gift card de <strong>Freaky Monster Tattoo Studio</strong> por ${amountLabel} ya está lista.</p>
+        ${paragraph(`Hola ${esc(giftCard.purchaserName)}, tu gift card ya está lista.`)}
       `;
 
     // La dedicatoria solo se muestra cuando el mail va a un tercero: mostrarle
     // al comprador el texto que él mismo escribió no aporta nada.
-    const dedication =
-      isGift && giftCard.message
-        ? `
-          <blockquote style="margin: 20px 0; padding: 12px 16px; border-left: 4px solid #1a1a1a; font-style: italic;">
-            ${giftCard.message}
-          </blockquote>
-        `
-        : '';
+    const dedication = isGift && giftCard.message ? quote(giftCard.message) : '';
 
-    const expiryLine = giftCard.expiresAt
-      ? `<p>Válida hasta el <strong>${formatLocalDate(giftCard.expiresAt)}</strong>.</p>`
-      : '';
+    const expiryRow = giftCard.expiresAt
+      ? [{ label: 'Válida hasta', value: formatLocalDate(giftCard.expiresAt) }]
+      : [];
 
-    return this.buildEmailHtml(
-      isGift ? '¡Te regalaron un tatuaje!' : 'Tu gift card está lista',
-      `
+    return emailShell({
+      title: isGift ? 'Te regalaron un tatuaje' : 'Tu gift card',
+      preheader: `${amountLabel} para usar en Freaky Monster Tattoo Studio`,
+      content: `
+        ${heading(isGift ? '¡Te regalaron un tatuaje!' : 'Tu gift card está lista')}
         ${intro}
         ${dedication}
-        <p style="margin-bottom: 6px;">Este es el código:</p>
-        <div style="margin: 0 0 20px; padding: 16px; border: 2px dashed #1a1a1a; text-align: center;
-                    font-family: monospace; font-size: 28px; font-weight: bold; letter-spacing: 2px;">
-          ${giftCard.code ?? ''}
-        </div>
-        ${expiryLine}
-        <p>Para usarla, escribinos por WhatsApp al ${STUDIO_WHATSAPP} con el código y coordinamos el turno.</p>
+        ${amountBlock(amountLabel, 'Valor de la gift card')}
+        ${codeBlock(giftCard.code ?? '')}
+        ${expiryRow.length > 0 ? dataTable(expiryRow) : ''}
+        ${paragraph('Para usarla, escribinos con el código y coordinamos el turno.')}
+        ${button(EMAIL_CONTACT.whatsappLink, 'Coordinar mi turno')}
       `,
-    );
+    });
   }
 
   private buildStudioEmailHtml(appointment: AppointmentForEmail, whenLocal: string): string {
-    return this.buildEmailHtml(
-      'Nueva reserva confirmada',
-      `
-        <ul>
-          <li><strong>Cliente:</strong> ${appointment.customerName}</li>
-          ${this.buildAppointmentRows(appointment, whenLocal)}
-          <li><strong>ID del turno:</strong> ${appointment.id}</li>
-        </ul>
+    return emailShell({
+      title: 'Nueva reserva confirmada',
+      preheader: `${appointment.customerName} — ${whenLocal}`,
+      content: `
+        ${heading('Nueva reserva confirmada')}
+        ${paragraph('Entró un turno nuevo por el sitio y ya está confirmado.')}
+        ${dataTable([
+          { label: 'Cliente', value: appointment.customerName },
+          ...this.buildAppointmentRows(appointment, whenLocal),
+          { label: 'ID del turno', value: appointment.id },
+        ])}
       `,
-    );
+    });
   }
 }

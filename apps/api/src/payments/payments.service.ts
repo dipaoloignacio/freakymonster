@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from '../availability/availability.service';
 import { GiftCardsService } from '../gift-cards/gift-cards.service';
 import { STUDIO_TIMEZONE } from '../common/timezone';
+import { FRONTEND_BASE_URL } from '../common/site';
 import { EmailService, AppointmentForEmail } from '../notifications/email.service';
 
 /**
@@ -45,16 +46,11 @@ function formatArs(amount: Prisma.Decimal): string {
   });
 }
 
-// Igual que el CORS condicional de main.ts: en local, `apps/web` corre en
-// localhost:3000, así que las back_urls tienen que apuntar ahí para poder
-// probar el flujo de pago de punta a punta en desarrollo. En producción
-// (NODE_ENV=production, fijado en el Dockerfile) apuntan al dominio real —
-// hardcodear siempre el dominio real rompería el testing local, porque
-// Mercado Pago redirigiría al sitio en vivo en vez de al servidor de dev.
+
+// Solo para decisiones propias de Mercado Pago (el webhook y auto_return, más
+// abajo). La URL del sitio NO se deriva de acá: sale de common/site.ts, que la
+// comparte con los emails.
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const FRONTEND_BASE_URL = IS_PRODUCTION
-  ? 'https://freakymonster.dipaoloproyects.space'
-  : 'http://localhost:3000';
 
 /**
  * A dónde avisa Mercado Pago que un pago cambió de estado. Es la MISMA base

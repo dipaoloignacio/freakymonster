@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { whatsappConsultaUrl } from "@/data/content";
 import { BUTTON_SPINNER, ErrorBox, PrimaryButton, Spinner, SpinnerCircle, StepEyebrow } from "@/components/reservation/shared";
+import GiftCardTile from "./GiftCardTile";
 
 type Step = "amount" | "data" | "redirecting";
 
@@ -144,36 +145,24 @@ export function GiftCardPurchase() {
               )}
 
               {tiers && tiers.length > 0 && (
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4">
-                  {tiers.map((tier) => {
-                    const selected = tier.id === tierId;
-                    return (
-                      <button
-                        key={tier.id}
-                        type="button"
-                        onClick={() => {
-                          setTierId(tier.id);
-                          setStep("data");
-                        }}
-                        className={`clip-notch-sm border-2 p-5 text-center transition-colors ${
-                          selected
-                            ? "border-gore bg-gore/10"
-                            : "border-plum bg-panel hover:border-toxic"
-                        }`}
-                      >
-                        <div
-                          className={`font-display text-2xl ${selected ? "text-gore" : "text-bone"}`}
-                        >
-                          {formatMoney(tier.amount)}
-                        </div>
-                        {tier.label && (
-                          <div className="mt-1 text-xs font-semibold uppercase tracking-[1.5px] text-toxic">
-                            {tier.label}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                // Una sola columna en mobile y dos desde sm. Con `auto-fit` y un
+                // mínimo en px, en pantallas intermedias entraban tres tarjetas
+                // muy angostas y el monto —que es lo que se viene a mirar—
+                // quedaba diminuto. Con la proporción fija, menos columnas es
+                // mejor: tarjetas más grandes.
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {tiers.map((tier) => (
+                    <GiftCardTile
+                      key={tier.id}
+                      tier={tier}
+                      selected={tier.id === tierId}
+                      formatMoney={formatMoney}
+                      onSelect={() => {
+                        setTierId(tier.id);
+                        setStep("data");
+                      }}
+                    />
+                  ))}
                 </div>
               )}
             </section>

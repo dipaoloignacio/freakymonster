@@ -276,9 +276,13 @@ export default function TattooPreview() {
                     onClick={() => { setDesign(d); setHeightCm(d.heightCm); }}
                     className={`clip-notch-sm px-2 py-2 text-[11px] font-bold uppercase ${
                       design.id === d.id ? "bg-toxic text-ink" : "border-2 border-ash text-bone"
-                    }`}
+                    } ${d.placeholder ? "opacity-70" : ""}`}
+                    // Los de relleno se marcan para no confundirlos con flash del
+                    // estudio cuando se muestre esto en una reunión.
+                    title={d.placeholder ? "De relleno, no es flash del estudio" : undefined}
                   >
                     {d.label}
+                    {d.placeholder && <span className="ml-1 opacity-60">*</span>}
                   </button>
                 ))}
               </div>

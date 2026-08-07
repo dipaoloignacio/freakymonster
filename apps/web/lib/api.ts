@@ -39,6 +39,26 @@ export interface Artist {
   imageUrl: string | null;
 }
 
+/** Foto de trabajo del estudio. La sirve GET /api/gallery-images (solo activas). */
+export interface GalleryImage {
+  id: string;
+  imageUrl: string;
+  styles: string[];
+  caption: string | null;
+  createdAt: string;
+  artistId: string | null;
+  /** Viene incluido desde el backend para no tener que cruzar contra /artists. */
+  artist: { id: string; name: string } | null;
+  /** Medidas del archivo. Pueden faltar: ver GalleryImage.width en el schema. */
+  width: number | null;
+  height: number | null;
+}
+
+export interface GalleryImageFilters {
+  artistId?: string;
+  style?: string;
+}
+
 export interface ArtistServiceOption {
   id: string;
   name: string;
@@ -94,6 +114,19 @@ async function request<T>(path: string): Promise<T> {
 
 export function fetchArtists(): Promise<Artist[]> {
   return request<Artist[]>("/artists");
+}
+
+/**
+ * Los filtros se mandan al backend en vez de traer todo y filtrar acá: el link
+ * "ver trabajos de Renzo" tiene que pedir solo los de Renzo, no la galería
+ * entera. Ver GalleryImagesService.findActive().
+ */
+export function fetchGalleryImages(filters: GalleryImageFilters = {}): Promise<GalleryImage[]> {
+  const params = new URLSearchParams();
+  if (filters.artistId) params.set("artistId", filters.artistId);
+  if (filters.style) params.set("style", filters.style);
+  const query = params.toString();
+  return request<GalleryImage[]>(`/gallery-images${query ? `?${query}` : ""}`);
 }
 
 export function fetchArtistServices(artistId: string): Promise<ArtistServiceOption[]> {

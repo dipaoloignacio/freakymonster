@@ -14,10 +14,57 @@ model Artist {
   imageUrl    String?
   active      Boolean  @default(true)
 
-  services     ArtistService[]
-  availability WeeklyAvailability[]
-  blocks       AvailabilityBlock[]
-  appointments Appointment[]
+  services      ArtistService[]
+  availability  WeeklyAvailability[]
+  blocks        AvailabilityBlock[]
+  appointments  Appointment[]
+  galleryImages GalleryImage[]
+}
+
+/// Fotos de trabajos del estudio. Las carga el panel y las muestra /galeria,
+/// que filtra por estilo y por tatuador.
+model GalleryImage {
+  id       String  @id @default(cuid())
+  imageUrl String
+  /// Mismo criterio que Artist.specialties: array de strings libres en vez de
+  /// una tabla de estilos. Los filtros de la página pública se derivan de lo
+  /// que hay cargado, así que un estilo nuevo aparece solo al usarlo por
+  /// primera vez, sin tener que darlo de alta en ningún lado.
+  styles   String[]
+
+  /// Opcional en el schema por flexibilidad —una foto vieja sin autor
+  /// identificado tiene que poder cargarse igual—, pero en la práctica se
+  /// espera que casi todas lo tengan: sin esto la foto no aparece cuando
+  /// alguien filtra por tatuador, que es el motivo por el que existe la página.
+  ///
+  /// onDelete: SetNull y no Cascade: si un tatuador se borra, sus trabajos son
+  /// del estudio y siguen valiendo como muestra. Borrarlos con él sería perder
+  /// el portfolio.
+  artistId String?
+  artist   Artist? @relation(fields: [artistId], references: [id], onDelete: SetNull)
+
+  caption   String?  @db.VarChar(300)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  /// Dimensiones del archivo, para que el masonry de /galeria pueda reservar
+  /// el alto de cada foto ANTES de que cargue. Sin esto las columnas de CSS
+  /// se reacomodan a medida que van llegando las imágenes y la página salta.
+  ///
+  /// Las mide el navegador al subir (el formulario ya decodifica la imagen
+  /// para la vista previa, así que sale gratis) y las manda como campos del
+  /// multipart. Se eligió eso antes que medirlas en el backend para no sumarle
+  /// una dependencia de imágenes a la API.
+  ///
+  /// Opcionales porque el dato viene del cliente y no se puede garantizar:
+  /// quien consuma esto tiene que bancarse que falten (la página cae a 1:1).
+  width  Int?
+  height Int?
+
+  /// La home y /galeria siempre piden active: true ordenado por fecha, y los
+  /// filtros por tatuador pegan sobre artistId.
+  @@index([active, createdAt])
+  @@index([artistId])
 }
 
 model Service {

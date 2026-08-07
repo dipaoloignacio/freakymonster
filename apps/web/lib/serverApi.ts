@@ -10,7 +10,7 @@
 //
 // A diferencia de NEXT_PUBLIC_*, esta variable se lee en tiempo de ejecución
 // y nunca llega al bundle del cliente.
-import type { Artist } from "./api";
+import type { Artist, GalleryImage } from "./api";
 
 const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -45,6 +45,37 @@ export async function fetchArtistsForRender(): Promise<Artist[] | null> {
     });
     if (!response.ok) return null;
     return (await response.json()) as Artist[];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cada cuánto se revalida la galería. Más corto que ARTISTS_REVALIDATE_SECONDS
+ * porque las fotos de trabajos se cargan bastante más seguido que los
+ * tatuadores, y el estudio quiere ver lo que sube sin esperar cinco minutos.
+ */
+export const GALLERY_REVALIDATE_SECONDS = 60;
+
+/**
+ * Fotos de la galería, ya filtradas por el backend. Devuelve null (nunca tira)
+ * si la API no responde, igual que fetchArtistsForRender(): la página tiene que
+ * poder explicar que no hay datos en vez de reventar con un 500.
+ */
+export async function fetchGalleryImagesForRender(
+  filters: { artistId?: string; style?: string } = {}
+): Promise<GalleryImage[] | null> {
+  const params = new URLSearchParams();
+  if (filters.artistId) params.set("artistId", filters.artistId);
+  if (filters.style) params.set("style", filters.style);
+  const query = params.toString();
+
+  try {
+    const response = await fetch(`${SERVER_API_BASE_URL}/gallery-images${query ? `?${query}` : ""}`, {
+      next: { revalidate: GALLERY_REVALIDATE_SECONDS },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as GalleryImage[];
   } catch {
     return null;
   }

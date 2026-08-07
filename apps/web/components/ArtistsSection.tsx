@@ -58,6 +58,24 @@ export default function ArtistsSection({ artists }: { artists: Artist[] }) {
                 <div className="text-xs font-semibold uppercase tracking-[1.5px] text-toxic">
                   {artist.specialties.join(" / ")}
                 </div>
+                {/* Lleva a la galería con el filtro ya puesto. El artistId va
+                    en la URL y no en estado de cliente justamente para que un
+                    link como este funcione entrando de una — ver el comentario
+                    de buildHref() en app/galeria/page.tsx.
+
+                    <a> y NO next/link, por el mismo motivo que la Navbar (ver
+                    el comentario ahí): importar Link en un componente de la
+                    home mete el router de Next en su bundle, +9 KB de First
+                    Load JS medidos. La home es la página más visitada del
+                    sitio; el prefetch de /galeria no paga eso. Adentro de
+                    /galeria sí se usa Link, porque ahí el router ya está y los
+                    filtros lo necesitan para no recargar la página entera. */}
+                <a
+                  href={`/galeria?artistId=${artist.id}`}
+                  className="clip-notch-sm mt-4 inline-block border-2 border-plum px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wide text-ashLight no-underline transition-colors hover:border-gore hover:text-bone"
+                >
+                  Ver trabajos de {artist.name.split(" ")[0]}
+                </a>
               </Reveal>
             );
           })}

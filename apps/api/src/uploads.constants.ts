@@ -15,3 +15,10 @@ import { join } from 'path';
 export const UPLOADS_DIR = join(__dirname, '..', '..', 'uploads');
 export const ARTIST_IMAGES_DIR = join(UPLOADS_DIR, 'artists');
 export const ARTIST_IMAGES_URL_PREFIX = '/api/uploads/artists';
+
+// Fotos de trabajos (modelo GalleryImage). Carpeta aparte de la de tatuadores
+// para poder mirar el volumen de cada cosa por separado en el servidor — son
+// dos ritmos de carga muy distintos: los tatuadores casi no cambian y las
+// fotos de trabajos se suben seguido.
+export const GALLERY_IMAGES_DIR = join(UPLOADS_DIR, 'gallery');
+export const GALLERY_IMAGES_URL_PREFIX = '/api/uploads/gallery';

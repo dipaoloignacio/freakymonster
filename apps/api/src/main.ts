@@ -4,12 +4,13 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import { ARTIST_IMAGES_DIR, UPLOADS_DIR } from './uploads.constants';
+import { ARTIST_IMAGES_DIR, GALLERY_IMAGES_DIR, UPLOADS_DIR } from './uploads.constants';
 
 async function bootstrap() {
   // multer no crea directorios intermedios solo — si uploads/artists no
   // existe (primer arranque en un volumen nuevo), los uploads fallarían.
   mkdirSync(ARTIST_IMAGES_DIR, { recursive: true });
+  mkdirSync(GALLERY_IMAGES_DIR, { recursive: true });
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

@@ -14,6 +14,9 @@ import { CreateGiftCardTierDto } from './dto/create-gift-card-tier.dto';
 import { UpdateGiftCardTierDto } from './dto/update-gift-card-tier.dto';
 import { CreateAdminAppointmentDto } from './dto/create-admin-appointment.dto';
 import { artistImageMulterOptions } from './multer-artist-image.config';
+import { galleryImageMulterOptions } from './multer-gallery-image.config';
+import { CreateGalleryImageDto } from './dto/create-gallery-image.dto';
+import { UpdateGalleryImageDto } from './dto/update-gallery-image.dto';
 
 @Controller('admin')
 @UseGuards(AdminGuard)
@@ -146,5 +149,35 @@ export class AdminController {
   @Patch('gift-card-tiers/:id')
   updateGiftCardTier(@Param('id') id: string, @Body() dto: UpdateGiftCardTierDto) {
     return this.adminService.updateGiftCardTier(id, dto);
+  }
+
+  // --- Galería de trabajos -------------------------------------------------
+
+  @Get('gallery-images')
+  findGalleryImages() {
+    return this.adminService.listGalleryImages();
+  }
+
+  @Post('gallery-images')
+  @UseInterceptors(FileInterceptor('image', galleryImageMulterOptions))
+  createGalleryImage(@Body() dto: CreateGalleryImageDto, @UploadedFile() file?: Express.Multer.File) {
+    return this.adminService.createGalleryImage(dto, file);
+  }
+
+  @Patch('gallery-images/:id')
+  @UseInterceptors(FileInterceptor('image', galleryImageMulterOptions))
+  updateGalleryImage(
+    @Param('id') id: string,
+    @Body() dto: UpdateGalleryImageDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.adminService.updateGalleryImage(id, dto, file);
+  }
+
+  // Borrado real, no degrada a desactivación como artists/services: nada
+  // apunta a una foto de galería. Ver AdminService.deleteGalleryImage().
+  @Delete('gallery-images/:id')
+  deleteGalleryImage(@Param('id') id: string) {
+    return this.adminService.deleteGalleryImage(id);
   }
 }

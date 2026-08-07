@@ -10,6 +10,7 @@ import { GiftCardsModule } from './gift-cards/gift-cards.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ArtistsModule } from './artists/artists.module';
+import { GalleryImagesModule } from './gallery-images/gallery-images.module';
 import { AdminModule } from './admin/admin.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { AdminModule } from './admin/admin.module';
     GiftCardsModule,
     NotificationsModule,
     ArtistsModule,
+    GalleryImagesModule,
     AdminModule,
   ],
   controllers: [AppController],

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
 import AutoScroll from "embla-carousel-auto-scroll";
 import { gallery, galleryAspect } from "@/data/content";
@@ -13,7 +12,15 @@ import { Reveal, STAGGER_STEP } from "@/components/motion/Reveal";
 // crawl rather than a race. Adjust to taste.
 const SCROLL_SPEED = 1;
 
-/** Adónde va cada foto del collage. */
+/**
+ * Adónde va cada foto del collage.
+ *
+ * Se navega con <a> y no con next/link, igual que la Navbar (ver el comentario
+ * ahí): importar Link en un componente de la home le suma el router de Next a
+ * su bundle, +9 KB de First Load JS medidos. Acá pesa el doble que en otros
+ * lados porque son nueve tarjetas, y ninguna gana nada con el prefetch: el
+ * carrusel las mueve de lugar todo el tiempo.
+ */
 const GALLERY_HREF = "/galeria";
 
 type GalleryPiece = {
@@ -137,7 +144,7 @@ function GalleryCell({
       className="flex h-full shrink-0 ps-2.5 sm:ps-3.5"
       style={{ alignItems: variant.align }}
     >
-      <Link
+      <a
         href={GALLERY_HREF}
         dir="ltr"
         // La tarjeta ENTERA es el link, no un botón adentro: es lo que uno
@@ -169,7 +176,7 @@ function GalleryCell({
             {piece.label}
           </span>
         </div>
-      </Link>
+      </a>
     </div>
   );
 }

@@ -11,6 +11,8 @@ import { UpdateAdminAppointmentDto } from './dto/update-admin-appointment.dto';
 import { CreateAvailabilityBlockDto } from './dto/create-availability-block.dto';
 import { CreateArtistDto } from './dto/create-artist.dto';
 import { UpdateArtistDto } from './dto/update-artist.dto';
+import { CreateGalleryImageDto } from './dto/create-gallery-image.dto';
+import { UpdateGalleryImageDto } from './dto/update-gallery-image.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { CreateAdminAppointmentDto } from './dto/create-admin-appointment.dto';
@@ -19,7 +21,7 @@ import { UpdateGiftCardTierDto } from './dto/update-gift-card-tier.dto';
 import { SetWeeklyAvailabilityDto } from './dto/set-weekly-availability.dto';
 import { canonicalizeGiftCardCode } from '../common/gift-card-code';
 import { giftCardRejectionReason } from '../common/gift-card-redemption';
-import { ARTIST_IMAGES_URL_PREFIX } from '../uploads.constants';
+import { ARTIST_IMAGES_URL_PREFIX, GALLERY_IMAGES_URL_PREFIX } from '../uploads.constants';
 
 // redeemedGiftCards: para que la lista del panel pueda marcar de un vistazo
 // qué turnos se pagaron con gift card, y con cuál.
@@ -687,5 +689,107 @@ export class AdminService {
     await this.prisma.artistService.deleteMany({ where: { artistId, serviceId } });
 
     return { artistId, serviceId, assigned: false };
+  }
+
+  // --- Galería de trabajos -------------------------------------------------
+
+  /**
+   * El panel ve activas e inactivas (la página pública solo las activas), y
+   * ordenadas por fecha de carga descendente: lo último que se subió es lo que
+   * el estudio quiere revisar.
+   */
+  async listGalleryImages() {
+    return this.prisma.galleryImage.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { artist: { select: { id: true, name: true } } },
+    });
+  }
+
+  async createGalleryImage(dto: CreateGalleryImageDto, file?: Express.Multer.File) {
+    // Sin archivo no hay nada que mostrar. A diferencia de un tatuador, que
+    // puede existir sin foto, una entrada de galería ES la foto.
+    if (!file) {
+      throw new BadRequestException('Hace falta subir una imagen');
+    }
+
+    // Se valida antes de escribir: la FK tiraría igual, pero con un error de
+    // Prisma que el panel no puede explicar. Además evita dejar el archivo
+    // huérfano en disco por un id mal tipeado.
+    if (dto.artistId) {
+      await this.assertArtistExists(dto.artistId);
+    }
+
+    return this.prisma.galleryImage.create({
+      data: {
+        imageUrl: `${GALLERY_IMAGES_URL_PREFIX}/${file.filename}`,
+        styles: dto.styles ?? [],
+        artistId: dto.artistId ?? null,
+        caption: dto.caption ?? null,
+        width: dto.width ?? null,
+        height: dto.height ?? null,
+      },
+      include: { artist: { select: { id: true, name: true } } },
+    });
+  }
+
+  async updateGalleryImage(id: string, dto: UpdateGalleryImageDto, file?: Express.Multer.File) {
+    const image = await this.prisma.galleryImage.findUnique({ where: { id } });
+    if (!image) {
+      throw new NotFoundException('Foto no encontrada');
+    }
+
+    if (dto.artistId) {
+      await this.assertArtistExists(dto.artistId);
+    }
+
+    return this.prisma.galleryImage.update({
+      where: { id },
+      data: {
+        // El spread condicional distingue "no mandaron el campo" (undefined,
+        // no se toca) de "lo mandaron vacío" (null, se borra). Para artistId y
+        // caption las dos cosas son intenciones distintas y válidas.
+        ...(dto.styles !== undefined ? { styles: dto.styles } : {}),
+        ...(dto.artistId !== undefined ? { artistId: dto.artistId } : {}),
+        ...(dto.caption !== undefined ? { caption: dto.caption } : {}),
+        ...(dto.active !== undefined ? { active: dto.active } : {}),
+        // Las dimensiones se escriben SOLO junto con un archivo nuevo. Un
+        // PATCH que solo cambia el estilo no trae medidas, y aceptarlas
+        // sueltas dejaría la proporción apuntando a una imagen que ya no está.
+        ...(file
+          ? {
+              imageUrl: `${GALLERY_IMAGES_URL_PREFIX}/${file.filename}`,
+              width: dto.width ?? null,
+              height: dto.height ?? null,
+            }
+          : {}),
+      },
+      include: { artist: { select: { id: true, name: true } } },
+    });
+  }
+
+  /**
+   * Borrado real, a diferencia de deleteArtist()/deleteService(), que degradan
+   * a desactivación. Acá se puede porque nada apunta a una GalleryImage: no
+   * hay historial que preservar ni FK entrante que romper. Una foto que el
+   * estudio quiere sacar de la vista pero conservar se desactiva con un PATCH.
+   *
+   * El archivo en disco queda. Es a propósito por ahora: borrarlo hace que un
+   * error de dedo sea irreversible, y pesan poco. Si algún día molesta, el
+   * lugar es acá.
+   */
+  async deleteGalleryImage(id: string) {
+    const image = await this.prisma.galleryImage.findUnique({ where: { id } });
+    if (!image) {
+      throw new NotFoundException('Foto no encontrada');
+    }
+
+    return this.prisma.galleryImage.delete({ where: { id } });
+  }
+
+  private async assertArtistExists(artistId: string) {
+    const artist = await this.prisma.artist.findUnique({ where: { id: artistId } });
+    if (!artist) {
+      throw new BadRequestException('El tatuador indicado no existe');
+    }
   }
 }

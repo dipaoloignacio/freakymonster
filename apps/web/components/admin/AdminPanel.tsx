@@ -8,10 +8,11 @@ import { AppointmentsTab } from "./AppointmentsTab";
 import { BlockDayTab } from "./BlockDayTab";
 import { ArtistsTab } from "./ArtistsTab";
 import { ServicesTab } from "./ServicesTab";
+import { GalleryTab } from "./GalleryTab";
 import { GiftCardsTab } from "./GiftCardsTab";
 
 type AuthState = "checking" | "denied" | "ok";
-type PanelTab = "appointments" | "block" | "artists" | "services" | "giftCards";
+type PanelTab = "appointments" | "block" | "artists" | "services" | "gallery" | "giftCards";
 
 export function AdminPanel({ code }: { code: string }) {
   const [authState, setAuthState] = useState<AuthState>("checking");
@@ -53,7 +54,7 @@ export function AdminPanel({ code }: { code: string }) {
           Panel de administración
         </h1>
 
-        <div className="mb-6 flex gap-2 border-b-2 border-plum">
+        <div className="mb-6 flex flex-wrap gap-2 border-b-2 border-plum">
           <button
             type="button"
             onClick={() => setTab("appointments")}
@@ -94,6 +95,15 @@ export function AdminPanel({ code }: { code: string }) {
           </button>
           <button
             type="button"
+            onClick={() => setTab("gallery")}
+            className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors ${
+              tab === "gallery" ? "border-b-2 border-gore text-gore" : "text-ash hover:text-ashLight"
+            }`}
+          >
+            Galería
+          </button>
+          <button
+            type="button"
             onClick={() => setTab("giftCards")}
             className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors ${
               tab === "giftCards" ? "border-b-2 border-gore text-gore" : "text-ash hover:text-ashLight"
@@ -107,6 +117,7 @@ export function AdminPanel({ code }: { code: string }) {
         {tab === "block" && <BlockDayTab code={code} />}
         {tab === "artists" && <ArtistsTab code={code} />}
         {tab === "services" && <ServicesTab code={code} />}
+        {tab === "gallery" && <GalleryTab code={code} />}
         {tab === "giftCards" && <GiftCardsTab code={code} />}
       </div>
     </div>

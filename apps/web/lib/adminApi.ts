@@ -385,3 +385,84 @@ export interface AdminGiftCardLookup {
 export function fetchAdminGiftCardByCode(code: string, adminCode: string): Promise<AdminGiftCardLookup> {
   return adminRequest(adminCode, `/admin/gift-cards/${encodeURIComponent(code)}`);
 }
+
+// --- Galería de trabajos ---------------------------------------------------
+
+export interface AdminGalleryImage {
+  id: string;
+  imageUrl: string;
+  styles: string[];
+  caption: string | null;
+  active: boolean;
+  createdAt: string;
+  artistId: string | null;
+  artist: { id: string; name: string } | null;
+  width: number | null;
+  height: number | null;
+}
+
+export interface GalleryImageFormInput {
+  styles?: string[];
+  /** null vacía el tatuador (la foto pasa a ser del estudio, sin autor). */
+  artistId?: string | null;
+  caption?: string | null;
+  active?: boolean;
+  image?: File | null;
+  /** Medidas del archivo, tomadas en el navegador. Solo con `image`. */
+  width?: number;
+  height?: number;
+}
+
+// Multipart/form-data porque puede venir con archivo — ver
+// CreateGalleryImageDto / UpdateGalleryImageDto para el formato de cada campo.
+function buildGalleryImageFormData(input: GalleryImageFormInput): FormData {
+  const formData = new FormData();
+  if (input.styles !== undefined) formData.set("styles", JSON.stringify(input.styles));
+  // null viaja como "" y el DTO lo vuelve a convertir en null: FormData no
+  // puede transportar null, y mandar el string "null" sería peor.
+  if (input.artistId !== undefined) formData.set("artistId", input.artistId ?? "");
+  if (input.caption !== undefined) formData.set("caption", input.caption ?? "");
+  if (input.active !== undefined) formData.set("active", String(input.active));
+  if (input.image) formData.set("image", input.image);
+  if (input.width !== undefined) formData.set("width", String(input.width));
+  if (input.height !== undefined) formData.set("height", String(input.height));
+  return formData;
+}
+
+export function fetchAdminGalleryImages(code: string): Promise<AdminGalleryImage[]> {
+  return adminRequest(code, "/admin/gallery-images");
+}
+
+export function createAdminGalleryImage(
+  code: string,
+  input: GalleryImageFormInput & { image: File }
+): Promise<AdminGalleryImage> {
+  return adminRequest(code, "/admin/gallery-images", {
+    method: "POST",
+    body: buildGalleryImageFormData(input),
+  });
+}
+
+export function updateAdminGalleryImage(
+  code: string,
+  id: string,
+  input: GalleryImageFormInput
+): Promise<AdminGalleryImage> {
+  return adminRequest(code, `/admin/gallery-images/${id}`, {
+    method: "PATCH",
+    body: buildGalleryImageFormData(input),
+  });
+}
+
+/** Sacarla de la vista pública sin perderla. */
+export function deactivateAdminGalleryImage(code: string, id: string): Promise<AdminGalleryImage> {
+  return updateAdminGalleryImage(code, id, { active: false });
+}
+
+/**
+ * Borrado REAL, a diferencia de tatuadores y servicios: nada apunta a una foto
+ * de galería, así que no hay historial que degradar a desactivación.
+ */
+export function deleteAdminGalleryImage(code: string, id: string): Promise<AdminGalleryImage> {
+  return adminRequest(code, `/admin/gallery-images/${id}`, { method: "DELETE" });
+}

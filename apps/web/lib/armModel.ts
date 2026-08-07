@@ -409,24 +409,176 @@ export function surfacePoint(
  * cambia nada: DecalGeometry saca las UV de X e Y, y usa Z solo como
  * profundidad de recorte, en las dos direcciones desde el centro de la caja.
  */
-export function decalOrientation(normal: THREE.Vector3, spin: number): THREE.Euler {
-  const zAxis = normal.clone().normalize();
+export type DecalBasis = { x: THREE.Vector3; y: THREE.Vector3; z: THREE.Vector3 };
+
+/** Base ortonormal del decal: Z afuera por la normal, Y arriba, X a la derecha. */
+export function decalBasis(normal: THREE.Vector3): DecalBasis {
+  const z = normal.clone().normalize();
 
   // Si la normal llegara a ser casi vertical (una cara mirando para arriba), el
   // producto vectorial con Y se degenera. No pasa en el antebrazo, donde las
   // normales son radiales, pero cuesta dos líneas cubrirlo.
-  const up = Math.abs(zAxis.y) > 0.99
+  const up = Math.abs(z.y) > 0.99
     ? new THREE.Vector3(0, 0, 1)
     : new THREE.Vector3(0, 1, 0);
 
-  const xAxis = new THREE.Vector3().crossVectors(up, zAxis).normalize();
-  const yAxis = new THREE.Vector3().crossVectors(zAxis, xAxis).normalize();
+  const x = new THREE.Vector3().crossVectors(up, z).normalize();
+  const y = new THREE.Vector3().crossVectors(z, x).normalize();
+  return { x, y, z };
+}
 
-  const basis = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
+export function decalOrientation(normal: THREE.Vector3, spin: number): THREE.Euler {
+  const { x, y, z } = decalBasis(normal);
+  const basis = new THREE.Matrix4().makeBasis(x, y, z);
   const q = new THREE.Quaternion().setFromRotationMatrix(basis);
   // El giro del diseño va alrededor de su propio Z (la normal), así que se
   // multiplica por derecha: es una rotación en el espacio local del decal.
   q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), spin));
 
   return new THREE.Euler().setFromQuaternion(q);
+}
+
+export type Footprint = {
+  /** Cuánto se hunde la superficie bajo la huella, respecto del plano tangente. */
+  sag: number;
+  /** Distancia del punto de apoyo a la cara de ATRÁS del brazo, sobre la normal. */
+  backDistance: number;
+  /** Muestras de la huella que ya no encontraron superficie. */
+  missed: number;
+  /**
+   * Muestras que caen más allá de 90° a cada lado, o sea pasando el horizonte
+   * del brazo. Ahí no hay proyección posible desde una sola dirección: el diseño
+   * es más ancho que la mitad visible del antebrazo.
+   */
+  beyondHalf: number;
+  /** Cuánto abraza el diseño alrededor del brazo, en grados. */
+  wrapDeg: number;
+};
+
+/**
+ * Mide la huella real del diseño sobre la malla.
+ *
+ * Existe porque DecalGeometry recorta contra una caja y NO descarta caras por
+ * orientación (ver node_modules/three-stdlib/geometries/DecalGeometry.js: mete
+ * todos los triángulos y los pasa por seis planos). Eso deja la profundidad
+ * atrapada entre dos límites opuestos:
+ *
+ *   - corta si es MENOR que el hundimiento de la superficie bajo la huella,
+ *     porque el brazo se curva y se escapa de la caja;
+ *   - proyecta un fantasma espejado en la cara de atrás si es MAYOR que la
+ *     distancia a esa cara.
+ *
+ * O sea que la profundidad correcta no es un número fijo ni un múltiplo del
+ * tamaño: depende de cuánto se curva el brazo abajo de ESE diseño en ESA
+ * posición. Por eso se mide en vez de estimarse.
+ *
+ * El muestreo va por rayos radiales (los mismos de surfacePoint) y no por rayos
+ * paralelos a la normal: en los bordes de un diseño que abraza el brazo, la
+ * superficie queda casi paralela a la normal del centro y un rayo paralelo pega
+ * de refilón o no pega. El radial siempre entra perpendicular.
+ */
+export function measureFootprint(
+  mesh: THREE.Mesh,
+  metrics: ArmMetrics,
+  y: number,
+  angle: number,
+  width: number,
+  height: number,
+  spin: number
+): Footprint {
+  const hit = surfacePoint(mesh, metrics, y, angle);
+  if (!hit) return { sag: 0, backDistance: 0, missed: 1, beyondHalf: 0, wrapDeg: 0 };
+
+  const basis = decalBasis(hit.normal);
+  const cos = Math.cos(spin);
+  const sin = Math.sin(spin);
+
+  let sag = 0;
+  let missed = 0;
+  let maxAngleOffset = 0;
+  let beyondHalf = 0;
+
+  const NU = 5;
+  const NV = 7;
+  for (let iu = 0; iu < NU; iu++) {
+    for (let iv = 0; iv < NV; iv++) {
+      // Coordenadas en el marco del DISEÑO, después rotadas por su giro propio:
+      // un diseño girado 90° abraza el brazo con su alto, no con su ancho, y la
+      // huella cambia por completo.
+      const u = (iu / (NU - 1) - 0.5) * width;
+      const v = (iv / (NV - 1) - 0.5) * height;
+      const lx = u * cos - v * sin;
+      const ly = u * sin + v * cos;
+
+      const sy = y + ly;
+      const r = Math.max(radiusAt(metrics, sy), 1e-4);
+      // lx es distancia sobre la piel; para pasarla a ángulo hay que dividir por
+      // el radio, que es lo que convierte arco en ángulo.
+      const dAngle = lx / r;
+      if (Math.abs(dAngle) > maxAngleOffset) maxAngleOffset = Math.abs(dAngle);
+
+      // Más allá de 90° a cada lado ya se pasó el horizonte del brazo: desde una
+      // sola dirección no existe proyección posible, es la silueta. Muestrear ahí
+      // devuelve puntos de la cara de ATRÁS y arruina la medición del
+      // hundimiento —por eso al principio daba 4 cm con un diseño de 6 cm—.
+      // Se cuenta aparte y no se mide.
+      if (Math.abs(dAngle) > Math.PI / 2) { beyondHalf++; continue; }
+
+      const p = surfacePoint(mesh, metrics, sy, angle + dAngle);
+      if (!p) { missed++; continue; }
+
+      const d = Math.abs(p.point.clone().sub(hit.point).dot(basis.z));
+      if (d > sag) sag = d;
+    }
+  }
+
+  // Hasta dónde llega el brazo para el otro lado: se tira un rayo desde el punto
+  // de apoyo hacia adentro y se toma el impacto MÁS LEJANO, que es la piel de
+  // atrás.
+  const inward = basis.z.clone().negate();
+  const rc = new THREE.Raycaster(hit.point.clone().addScaledVector(inward, 1e-4), inward, 0, 0.5);
+  const hits = rc.intersectObject(mesh, false);
+  const backDistance = hits.length ? hits[hits.length - 1].distance : Infinity;
+
+  return { sag, backDistance, missed, beyondHalf, wrapDeg: ((maxAngleOffset * 180) / Math.PI) * 2 };
+}
+
+/** Margen sobre el hundimiento medido, para que el recorte no roce el borde. */
+const SAG_MARGIN = 1.25;
+
+/**
+ * Profundidad de la caja de proyección.
+ *
+ * La caja está centrada en el punto de apoyo, así que de los `depth` totales
+ * sólo `depth/2` entran en el brazo: por eso el hundimiento se multiplica por 2.
+ *
+ * El tope contra `backDistance` es lo que evita el fantasma espejado del otro
+ * lado. Cuando el tope se activa, la caja ya no alcanza a contener el diseño y
+ * el recorte es inevitable — eso es lo que devuelve `clipped`, y es el síntoma
+ * de que el diseño es demasiado grande para el grosor del brazo, no un bug.
+ */
+export function decalDepth(footprint: Footprint): {
+  depth: number;
+  /** Parte del diseño cae pasando el horizonte del brazo: recorte SEGURO. */
+  beyondHorizon: boolean;
+  /**
+   * La profundidad que pedía el hundimiento no entraba antes de la piel de
+   * atrás, así que se topeó. Ojo: esto NO implica que se vea un corte. El
+   * hundimiento se mide en las cuatro esquinas de la caja, y en la mayoría de
+   * los diseños ahí no hay tinta —la golondrina ocupa el 74% del alto de su
+   * PNG—, así que lo que se recorta suele ser transparente. Recién se nota en
+   * diseños que llenan su caja hasta el borde.
+   */
+  depthCapped: boolean;
+} {
+  const wanted = footprint.sag * 2 * SAG_MARGIN;
+  // 0,9 y no 1,0: pegado justo a la piel de atrás el recorte deja restos de
+  // triángulos de esa cara asomando por los bordes.
+  const ceiling = footprint.backDistance * 2 * 0.9;
+  const depth = Math.max(Math.min(wanted, ceiling), 0.02);
+  return {
+    depth,
+    beyondHorizon: footprint.beyondHalf > 0 || footprint.missed > 0,
+    depthCapped: wanted > ceiling,
+  };
 }

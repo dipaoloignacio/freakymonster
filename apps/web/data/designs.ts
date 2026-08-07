@@ -29,7 +29,15 @@ export type TattooDesign = {
 
 export const designs: TattooDesign[] = [
   // Flash real. 800x800 con transparencia de verdad.
-  { id: "rosa", label: "Rosa", image: "/designs/tatto1.png", heightCm: 12, aspect: 1 },
+  //
+  // La rosa (tatto1.png) salió de esta lista porque el archivo se borró: el 36,5%
+  // de sus píxeles opacos eran BLANCOS —el espacio negativo adentro del dibujo
+  // estaba relleno, no transparente— y sobre la piel se leía como una calcomanía
+  // pegada en vez de tinta. Cuando vuelva con el fondo transparente, se agrega
+  // acá de nuevo.
+  //
+  // Ojo con dejar una ruta que no existe en esta lista: useTexture tira una
+  // excepción con el 404 y se cae el previsualizador ENTERO, no sólo ese diseño.
   { id: "golondrina", label: "Golondrina", image: "/designs/tatto2.png", heightCm: 11, aspect: 1 },
 
   // De relleno, los genera scripts/make-placeholder-designs.mjs. Se van cuando

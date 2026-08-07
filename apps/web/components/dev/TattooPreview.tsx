@@ -6,18 +6,24 @@ import { Decal, OrbitControls, useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import {
   M_TO_CM,
+  decalDepth,
   decalOrientation,
+  measureFootprint,
   maxDesignHeight,
   placementRange,
   prepareArm,
-  radiusAt,
   surfacePoint,
   type ArmMetrics,
   type ArmSide,
+  type Footprint,
 } from "@/lib/armModel";
+
 import { designs, type TattooDesign } from "@/data/designs";
 
 const MODEL_URL = "/models/arms_female.web.glb";
+
+/** Lo que mide la huella, más lo que se decidió con esa medición. */
+export type FootprintReport = Footprint & { depth: number; beyondHorizon: boolean; depthCapped: boolean };
 
 type Controls = {
   side: ArmSide;
@@ -36,11 +42,13 @@ function Arm({
   controls,
   onMetrics,
   onPlacementFail,
+  onFootprint,
   debug,
 }: {
   controls: Controls;
   onMetrics: (m: ArmMetrics) => void;
   onPlacementFail: (failed: boolean) => void;
+  onFootprint: (f: FootprintReport) => void;
   debug: boolean;
 }) {
   const { scene } = useGLTF(MODEL_URL);
@@ -68,6 +76,7 @@ function Arm({
   } | null>(null);
 
   const height = controls.heightCm / M_TO_CM;
+  const width = height * controls.design.aspect;
   const y = metrics.yWrist + controls.fromWristCm / M_TO_CM;
   const angle = (controls.aroundDeg * Math.PI) / 180;
   const spin = (controls.spinDeg * Math.PI) / 180;
@@ -85,17 +94,20 @@ function Arm({
     }
     onPlacementFail(false);
 
+    // La profundidad NO es fija ni un múltiplo del tamaño: se mide cuánto se
+    // hunde la superficie bajo la huella de ESTE diseño en ESTA posición. Antes
+    // salía del radio del brazo y no escalaba con los cm pedidos, así que un
+    // diseño grande se salía de la caja y quedaba cortado a la mitad.
+    const footprint = measureFootprint(mesh, metrics, y, angle, width, height, spin);
+    const { depth, beyondHorizon, depthCapped } = decalDepth(footprint);
+
     setPlacement({
       position: [hit.point.x, hit.point.y, hit.point.z],
       rotation: decalOrientation(hit.normal, spin),
-      // La profundidad de proyección se ata al grosor del brazo en ESE punto.
-      // Fija no sirve: DecalGeometry proyecta dentro de una caja centrada en el
-      // punto, así que si la profundidad supera el diámetro el diseño atraviesa
-      // el brazo y vuelve a aparecer, espejado, del otro lado. Usando el radio
-      // local la caja llega hasta la mitad del brazo y nunca sale por atrás.
-      depth: Math.max(radiusAt(metrics, y), 0.02),
+      depth,
     });
-  }, [y, angle, spin, geometry, metrics, onPlacementFail]);
+    onFootprint({ ...footprint, depth, beyondHorizon, depthCapped });
+  }, [y, angle, spin, width, height, geometry, metrics, onPlacementFail, onFootprint]);
 
   return (
     <mesh ref={meshRef} geometry={geometry} material={material}>
@@ -103,7 +115,7 @@ function Arm({
         <Decal
           position={placement.position}
           rotation={placement.rotation}
-          scale={[height * controls.design.aspect, height, placement.depth]}
+          scale={[width, height, placement.depth]}
           map={texture}
           // drei viene con depthTest={false} por defecto, que dibuja el decal
           // SIEMPRE por encima: el tatuaje se vería a través del brazo al girar
@@ -122,11 +134,13 @@ function Scene({
   controls,
   onMetrics,
   onPlacementFail,
+  onFootprint,
   debug,
 }: {
   controls: Controls;
   onMetrics: (m: ArmMetrics) => void;
   onPlacementFail: (failed: boolean) => void;
+  onFootprint: (f: FootprintReport) => void;
   debug: boolean;
 }) {
   return (
@@ -151,7 +165,7 @@ function Scene({
       {/* Contraluz frío: despega el brazo del fondo oscuro sin aclarar la piel. */}
       <directionalLight position={[0, -1, -3]} intensity={0.6} color="#8fb7ff" />
       <Suspense fallback={null}>
-        <Arm controls={controls} onMetrics={onMetrics} onPlacementFail={onPlacementFail} debug={debug} />
+        <Arm controls={controls} onMetrics={onMetrics} onPlacementFail={onPlacementFail} onFootprint={onFootprint} debug={debug} />
       </Suspense>
       <OrbitControls
         makeDefault
@@ -200,6 +214,7 @@ export default function TattooPreview() {
   const [metrics, setMetrics] = useState<ArmMetrics | null>(null);
   const [placementFailed, setPlacementFailed] = useState(false);
   const [debug, setDebug] = useState(false);
+  const [footprint, setFootprint] = useState<FootprintReport | null>(null);
 
   // Los límites salen de la malla, no de números escritos a mano, y dependen del
   // alto del diseño: el límite real es sobre el BORDE del tatuaje, no sobre su
@@ -243,6 +258,7 @@ export default function TattooPreview() {
               controls={controls}
               onMetrics={setMetrics}
               onPlacementFail={setPlacementFailed}
+              onFootprint={setFootprint}
               debug={debug}
             />
           </div>
@@ -329,6 +345,33 @@ export default function TattooPreview() {
                 <div>muñeca → corte: {limits.wristToCutCm.toFixed(1)} cm</div>
                 <div>rango permitido: {limits.minCm.toFixed(1)} – {limits.maxCm.toFixed(1)} cm</div>
                 <div>alto máx. de diseño: {limits.maxHeightCm.toFixed(1)} cm</div>
+                {footprint && (
+                  <>
+                    <div className="pt-2 text-toxic">huella del diseño</div>
+                    <div>hundimiento: {(footprint.sag * M_TO_CM).toFixed(2)} cm</div>
+                    <div>prof. de caja: {(footprint.depth * M_TO_CM).toFixed(2)} cm</div>
+                    <div>
+                      hasta la piel de atrás:{" "}
+                      {Number.isFinite(footprint.backDistance)
+                        ? (footprint.backDistance * M_TO_CM).toFixed(2) + " cm"
+                        : "—"}
+                    </div>
+                    <div className={footprint.wrapDeg > 120 ? "text-gore" : "text-ash"}>
+                      abraza: {footprint.wrapDeg.toFixed(0)}°
+                      {footprint.beyondHalf > 0 && " (pasa el horizonte)"}
+                    </div>
+                    <div className={footprint.beyondHorizon ? "text-gore" : "text-toxic"}>
+                      {footprint.beyondHorizon
+                        ? "SE CORTA: el diseño pasa el horizonte del brazo"
+                        : "sin corte"}
+                    </div>
+                    {footprint.depthCapped && !footprint.beyondHorizon && (
+                      <div className="text-ash">
+                        profundidad topeada (recorta esquinas, casi siempre vacías)
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>

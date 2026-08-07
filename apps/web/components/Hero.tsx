@@ -25,14 +25,30 @@ export default function Hero() {
           en elementos distintos a propósito: los dos animan opacity, y en el
           mismo nodo el keyframe del flicker pisaría el fade a mitad de camino. */}
       <Reveal>
-        <Image
-          src="/logo.png"
-          alt="Freaky Monster Tattoo Studio"
-          width={1080}
-          height={605}
-          className="h-auto w-[clamp(260px,38vw,560px)] animate-flicker drop-shadow-[0_0_40px_rgba(0,0,0,0.6)]"
-          priority
-        />
+        {/* El título de la página es el logo, así que el <h1> es este —no hay
+            otro encabezado que compita— y por eso lleva el texto completo con
+            "Mendoza" adentro: un <h1> cuyo único contenido es una imagen deja
+            el encabezado vacío para cualquiera que lea el HTML sin resolver el
+            alt. El texto va en sr-only (visualmente oculto, no display:none:
+            eso lo sacaría también del lector de pantalla) y la imagen queda
+            marcada como decorativa con alt="" para no anunciar dos veces lo
+            mismo.
+
+            El <h1> va ADENTRO del Reveal y no al revés: Reveal renderiza un
+            <div>, y un <div> dentro de un <h1> es HTML inválido. */}
+        <h1 className="m-0">
+          <span className="sr-only">
+            Freaky Monster Tattoo Studio — Tatuajes en Mendoza
+          </span>
+          <Image
+            src="/logo.png"
+            alt=""
+            width={1080}
+            height={605}
+            className="h-auto w-[clamp(260px,38vw,560px)] animate-flicker drop-shadow-[0_0_40px_rgba(0,0,0,0.6)]"
+            priority
+          />
+        </h1>
       </Reveal>
       <p className="mx-auto mt-[26px] max-w-[620px] text-[clamp(16px,2vw,20px)] font-medium tracking-[0.3px] text-ashLight">
         No venimos a decorar piel. Venimos a marcarla para siempre. Blackwork,

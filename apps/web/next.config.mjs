@@ -11,6 +11,21 @@ const API_INTERNAL_URL =
 const nextConfig = {
   output: "standalone",
   images: {
+    // 30 días en vez de los 60 SEGUNDOS que Next pone por defecto. Medido en
+    // producción, el logo del hero salía con
+    // `Cache-Control: public, max-age=60, must-revalidate`: 230 KB de WebP que
+    // el navegador vuelve a pedir cada minuto aunque el archivo no cambió.
+    //
+    // Es seguro estirarlo porque ninguna de las imágenes que pasan por acá se
+    // edita en su lugar: las de public/ (logo, hero, about) cambian con un
+    // deploy, y las fotos de tatuadores subidas desde el panel llegan con un
+    // nombre de archivo nuevo cada vez, así que la URL —y por lo tanto la
+    // entrada de caché— es otra.
+    //
+    // El costo de equivocarse: si se pisa un archivo de public/ manteniendo el
+    // nombre, quien ya lo tenga cacheado sigue viendo el viejo hasta 30 días.
+    // Renombrarlo (logo-v2.png) lo resuelve.
+    minimumCacheTTL: 2592000,
     // Para dev: ahí el backend vive en un origen distinto (localhost:3001) y
     // resolveAssetUrl (lib/api.ts) devuelve una URL absoluta a ese host.
     // En producción la imageUrl queda relativa (mismo dominio vía Nginx), y

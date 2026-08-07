@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Anton, Cinzel, Oswald, UnifrakturMaguntia } from "next/font/google";
 import { ReservationModalProvider } from "@/components/reservation/ReservationModal";
 import { OG_IMAGE, SITE_URL } from "@/lib/site";
@@ -47,6 +47,31 @@ export const metadata: Metadata = {
   alternates: {
     canonical: SITE_URL,
   },
+  /**
+   * Los íconos van declarados acá y los archivos viven en public/, en vez de
+   * usar la convención app/icon.png + app/apple-icon.png. Dos razones:
+   *
+   * 1. La convención de archivos gana sobre metadata.icons — con icon.png en
+   *    app/ este bloque se ignoraría entero y no habría forma de agregar el
+   *    SVG ni el 32x32.
+   * 2. Un solo PNG de 512 no alcanza: el navegador lo reduce a 16px y la
+   *    ilustración queda ilegible. Por eso favicon.svg y los PNG chicos son
+   *    una marca simplificada (ver public/favicon.svg) y la ilustración
+   *    completa queda para los tamaños donde sí se lee — apple-touch e
+   *    íconos del manifest.
+   *
+   * El orden importa: los navegadores modernos toman el último rel="icon"
+   * que entienden, así que el SVG va al final para que gane sobre los PNG.
+   */
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
   openGraph: {
     type: "website",
     locale: "es_AR",
@@ -64,6 +89,23 @@ export const metadata: Metadata = {
       "Estudio de tatuajes en el microcentro de Mendoza (km0). Blackwork, realismo y old school.",
     images: [OG_IMAGE],
   },
+};
+
+/**
+ * `themeColor` pinta la barra del navegador en mobile (Chrome Android, Safari
+ * 15+) del mismo ink que el fondo del sitio, así la barra se funde con la
+ * página en vez de cortarla con una franja blanca. Es el mismo valor que
+ * `background` en globals.css y que `theme_color` en app/manifest.ts — si
+ * cambia uno, cambian los tres.
+ *
+ * Un solo color y no un par light/dark porque el sitio no tiene modo claro:
+ * el fondo es ink siempre, mire como mire el sistema operativo.
+ *
+ * Va en su propio export y no adentro de `metadata` porque desde Next 14
+ * themeColor/viewport ahí tiran warning de deprecación y se ignoran.
+ */
+export const viewport: Viewport = {
+  themeColor: "#0d0b0a",
 };
 
 const localBusinessJsonLd = {
